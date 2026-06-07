@@ -33,7 +33,6 @@ export default function LoginPage() {
       setEmail('admin@school.com');
       setPassword('admin123');
       setError('');
-      alert('Database seeded! Use admin@school.com / admin123 to login.');
     }
   }
 
@@ -77,10 +76,6 @@ export default function LoginPage() {
             </button>
           </div>
         </div>
-
-        <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.6)', marginTop: '1.5rem', fontSize: '0.8rem' }}>
-          Demo: admin@school.com / admin123
-        </p>
       </div>
     </div>
   );

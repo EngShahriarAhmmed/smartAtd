@@ -62,11 +62,7 @@ export default function DashboardPage() {
             {new Date(stats.date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
           </p>
         </div>
-        <Link href="/dashboard/qr">
-          <button className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            📱 Start Session
-          </button>
-        </Link>
+      
       </div>
 
       {/* Stats Grid */}

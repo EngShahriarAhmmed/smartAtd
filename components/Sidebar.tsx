@@ -4,10 +4,9 @@ import { usePathname, useRouter } from 'next/navigation';
 
 const navItems = [
   { href: '/admin', label: 'Dashboard', icon: '📊' },
-  { href: '/admin/qr', label: 'Generate QR', icon: '📱' },
   { href: '/admin/students', label: 'Students', icon: '👥' },
+  { href: '/admin/qr', label: 'Generate QR', icon: '📱' },
   { href: '/admin/attendance', label: 'Attendance', icon: '✅' },
-  { href: '/admin/sessions', label: 'Sessions', icon: '📅' },
 ];
 
 export default function Sidebar({ userEmail, userRole }: { userEmail: string; userRole: string }) {

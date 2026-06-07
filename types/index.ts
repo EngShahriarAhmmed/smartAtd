@@ -55,3 +55,10 @@ export interface DashboardStats {
   recentAttendance: AttendanceRecord[];
   classStats: { class: string; present: number; total: number }[];
 }
+
+export interface Pagination {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
