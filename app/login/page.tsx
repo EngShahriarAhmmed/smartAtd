@@ -21,7 +21,7 @@ export default function LoginPage() {
     const data = await res.json();
     setLoading(false);
     if (!res.ok) { setError(data.error || 'Login failed'); return; }
-    router.push('/dashboard');
+    router.push('/admin');
   }
 
   async function seedDB() {
