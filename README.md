@@ -1,3 +1,32 @@
+# Smart QR Attendance & Class Monitoring System
+
+Next.js full-stack QR attendance system migrated to Prisma Client runtime.
+
+## Prisma setup
+
+```bash
+cp .env.example .env.local
+npm install
+npx prisma generate
+npx prisma db push
+npm run dev
+```
+
+Seed demo data:
+
+```bash
+curl -X POST http://localhost:3000/api/seed
+```
+
+Demo login after seed:
+
+```text
+admin@school.com
+admin123
+```
+
+See `README-PRISMA-MIGRATION.md` for migration notes.
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started

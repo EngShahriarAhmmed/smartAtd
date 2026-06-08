@@ -1,0 +1,356 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  super_admin
+  institution_admin
+  admin
+  teacher
+  student
+  parent
+}
+
+enum AttendanceStatus {
+  present
+  absent
+  late
+}
+
+enum ActiveStatus {
+  active
+  inactive
+  suspended
+}
+
+enum StudentStatus {
+  active
+  inactive
+  transferred
+  graduated
+}
+
+enum AttendanceSource {
+  qr
+  manual
+  offline_sync
+}
+
+enum NotificationType {
+  sms
+  email
+  push
+}
+
+enum NotificationEvent {
+  student_absent
+  low_attendance
+  non_collegiate_risk
+  attendance_correction
+}
+
+enum NotificationStatus {
+  pending
+  sent
+  failed
+}
+
+enum CorrectionStatus {
+  pending
+  approved
+  rejected
+}
+
+model Institution {
+  id        String       @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  code      String       @unique
+  address   String?
+  logo      String?
+  status    ActiveStatus @default(active)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@map("institutions")
+}
+
+model User {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  institutionId    String?  @db.ObjectId
+  name             String
+  email            String   @unique
+  phone            String?
+  password         String
+  role             UserRole @default(teacher)
+  active           Boolean  @default(true)
+  refreshTokenHash String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([institutionId, role, active])
+  @@map("users")
+}
+
+model Student {
+  id             String        @id @default(auto()) @map("_id") @db.ObjectId
+  institutionId  String?       @db.ObjectId
+  userId         String?       @db.ObjectId
+  studentId      String
+  rollNumber     String
+  roll           String?
+  name           String
+  email          String
+  class          String
+  section        String
+  classId        String?       @db.ObjectId
+  sectionId      String?       @db.ObjectId
+  photo          String?
+  guardianName   String?
+  guardianPhone  String?
+  guardianUserId String?       @db.ObjectId
+  phone          String?
+  qrToken        String        @unique
+  active         Boolean       @default(true)
+  status         StudentStatus @default(active)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@unique([institutionId, studentId])
+  @@unique([institutionId, email])
+  @@index([class, section, rollNumber])
+  @@index([institutionId, class, section, active])
+  @@map("students")
+}
+
+model Teacher {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  institutionId String?  @db.ObjectId
+  userId        String?  @db.ObjectId
+  employeeId    String
+  name          String
+  designation   String?
+  department    String?
+  photo         String?
+  phone         String?
+  email         String?
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([institutionId, employeeId])
+  @@index([institutionId, active])
+  @@map("teachers")
+}
+
+model Class {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  institutionId String?  @db.ObjectId
+  name          String
+  code          String?
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([institutionId, name])
+  @@map("classes")
+}
+
+model Section {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  institutionId String?  @db.ObjectId
+  classId       String?  @db.ObjectId
+  className     String?
+  name          String
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([institutionId, classId, name])
+  @@index([className, name])
+  @@map("sections")
+}
+
+model Subject {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  institutionId String?  @db.ObjectId
+  name          String
+  code          String
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([institutionId, code])
+  @@index([institutionId, active])
+  @@map("subjects")
+}
+
+model Period {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  institutionId String?  @db.ObjectId
+  periodName    String
+  startTime     String
+  endTime       String
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([institutionId, periodName])
+  @@map("periods")
+}
+
+model Routine {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  institutionId String?  @db.ObjectId
+  classId       String?  @db.ObjectId
+  sectionId     String?  @db.ObjectId
+  subjectId     String?  @db.ObjectId
+  teacherId     String?  @db.ObjectId
+  periodId      String?  @db.ObjectId
+  day           String
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([institutionId, classId, sectionId, periodId, day])
+  @@map("routines")
+}
+
+model ClassSession {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  class     String
+  section   String
+  subject   String
+  date      String
+  startTime String
+  endTime   String?
+  createdBy String
+  qrToken   String   @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([class, section, date])
+  @@map("class_sessions")
+}
+
+model Attendance {
+  id             String           @id @default(auto()) @map("_id") @db.ObjectId
+  institutionId  String?          @db.ObjectId
+  studentId      String           @db.ObjectId
+  teacherId      String?          @db.ObjectId
+  classId        String?          @db.ObjectId
+  sectionId      String?          @db.ObjectId
+  subjectId      String?          @db.ObjectId
+  periodId       String?          @db.ObjectId
+  class          String
+  section        String
+  subject        String           @default("")
+  period         String           @default("")
+  date           String
+  attendanceDate DateTime?
+  status         AttendanceStatus @default(present)
+  markedAt       DateTime         @default(now())
+  scanTime       DateTime?
+  markedBy       String
+  sessionToken   String?
+  latitude       Float?
+  longitude      Float?
+  deviceId       String?
+  ipAddress      String?
+  source         AttendanceSource @default(qr)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@unique([studentId, date, class, section, subject, period])
+  @@index([institutionId, date, class, section])
+  @@index([studentId, date])
+  @@index([subjectId, date])
+  @@index([teacherId, date])
+  @@map("attendance")
+}
+
+model TeacherClassLog {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  institutionId String?  @db.ObjectId
+  teacherId     String?  @db.ObjectId
+  teacherEmail  String?
+  classId       String?  @db.ObjectId
+  sectionId     String?  @db.ObjectId
+  subjectId     String?  @db.ObjectId
+  periodId      String?  @db.ObjectId
+  class         String
+  section       String
+  subject       String   @default("")
+  period        String   @default("")
+  date          String
+  startTime     DateTime @default(now())
+  endTime       DateTime?
+  scanCount     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([teacherEmail, date])
+  @@index([institutionId, date, class, section])
+  @@map("teacher_class_logs")
+}
+
+model AuditLog {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  institutionId String?  @db.ObjectId
+  actorUserId   String?  @db.ObjectId
+  actorEmail    String?
+  action        String
+  entity        String
+  entityId      String?
+  before        Json?
+  after         Json?
+  ipAddress     String?
+  userAgent     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([institutionId, createdAt])
+  @@index([actorEmail, createdAt])
+  @@map("audit_logs")
+}
+
+model Notification {
+  id            String             @id @default(auto()) @map("_id") @db.ObjectId
+  institutionId String?            @db.ObjectId
+  studentId     String?            @db.ObjectId
+  guardianPhone String?
+  guardianEmail String?
+  type          NotificationType
+  event         NotificationEvent
+  message       String
+  status        NotificationStatus @default(pending)
+  sentAt        DateTime?
+  error         String?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@index([institutionId, status, createdAt])
+  @@map("notifications")
+}
+
+model AttendanceCorrection {
+  id              String           @id @default(auto()) @map("_id") @db.ObjectId
+  institutionId   String?          @db.ObjectId
+  attendanceId    String           @db.ObjectId
+  requestedBy     String           @db.ObjectId
+  approvedBy      String?          @db.ObjectId
+  previousStatus  String
+  requestedStatus String
+  reason          String
+  status          CorrectionStatus @default(pending)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([institutionId, status, createdAt])
+  @@map("attendance_corrections")
+}

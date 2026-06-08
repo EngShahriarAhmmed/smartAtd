@@ -1,18 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/mongodb';
-import { ClassSession } from '@/models/ClassSession';
-import { getAuthFromRequest } from '@/lib/auth';
-import redis, { REDIS_KEYS, QR_EXPIRY } from '@/lib/redis';
+import { format } from 'date-fns';
 import QRCode from 'qrcode';
 import { v4 as uuidv4 } from 'uuid';
-import { format } from 'date-fns';
+import prisma from '@/lib/prisma';
+import { getAuthFromRequest } from '@/lib/auth';
+import redis, { REDIS_KEYS, QR_EXPIRY } from '@/lib/redis';
 
 export async function POST(req: NextRequest) {
   try {
     const auth = getAuthFromRequest(req);
     if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    await connectDB();
     const { class: cls, section, subject } = await req.json();
     if (!cls || !section || !subject) {
       return NextResponse.json({ error: 'Class, section, and subject required' }, { status: 400 });
@@ -21,42 +19,23 @@ export async function POST(req: NextRequest) {
     const today = format(new Date(), 'yyyy-MM-dd');
     const now = format(new Date(), 'HH:mm');
 
-    // Deactivate any existing active session for this class/section
-    await ClassSession.updateMany(
-      { class: cls, section, active: true },
-      { active: false, endTime: now }
-    );
+    await prisma.classSession.updateMany({ where: { class: cls, section, active: true }, data: { active: false, endTime: now } });
 
-    // Create new session
     const qrToken = uuidv4();
-    const session = await ClassSession.create({
-      class: cls, section, subject, date: today,
-      startTime: now, createdBy: auth.email,
-      qrToken, active: true,
+    const session = await prisma.classSession.create({
+      data: { class: cls, section, subject, date: today, startTime: now, createdBy: auth.email, qrToken, active: true },
     });
 
-    // Store session in Redis with expiry for rotating QR
-    const sessionData = JSON.stringify({
-      sessionId: session._id.toString(),
-      class: cls, section, subject, date: today,
-      createdBy: auth.email,
-    });
-
+    const sessionData = JSON.stringify({ sessionId: session.id, class: cls, section, subject, date: today, createdBy: auth.email });
     await redis.setex(REDIS_KEYS.qrSession(qrToken), QR_EXPIRY, sessionData);
     await redis.setex(REDIS_KEYS.activeQR(`${cls}-${section}`), QR_EXPIRY + 5, qrToken);
 
-    // Build the QR URL - student scans this
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     const qrUrl = `${appUrl}/scan?token=${qrToken}`;
-
-    const qrDataUrl = await QRCode.toDataURL(qrUrl, {
-      width: 300,
-      margin: 2,
-      color: { dark: '#1e3a5f', light: '#ffffff' },
-    });
+    const qrDataUrl = await QRCode.toDataURL(qrUrl, { width: 300, margin: 2, color: { dark: '#1e3a5f', light: '#ffffff' } });
 
     return NextResponse.json({
-      session: { id: session._id, qrToken, class: cls, section, subject, date: today, startTime: now },
+      session: { id: session.id, _id: session.id, qrToken, class: cls, section, subject, date: today, startTime: now },
       qrDataUrl,
       qrUrl,
       expiresIn: QR_EXPIRY,
@@ -68,7 +47,6 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
-  // Get active session QR for a class
   try {
     const auth = getAuthFromRequest(req);
     if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -84,13 +62,11 @@ export async function GET(req: NextRequest) {
     const ttl = await redis.ttl(REDIS_KEYS.qrSession(token));
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     const qrUrl = `${appUrl}/scan?token=${token}`;
-    const qrDataUrl = await QRCode.toDataURL(qrUrl, {
-      width: 300, margin: 2,
-      color: { dark: '#1e3a5f', light: '#ffffff' },
-    });
+    const qrDataUrl = await QRCode.toDataURL(qrUrl, { width: 300, margin: 2, color: { dark: '#1e3a5f', light: '#ffffff' } });
 
     return NextResponse.json({ active: true, qrDataUrl, qrUrl, ttl, token });
-  } catch {
+  } catch (error) {
+    console.error(error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

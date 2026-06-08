@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/mongodb';
-import { Attendance } from '@/models/Attendance';
-import { Student } from '@/models/Student';
-import { getAuthFromRequest } from '@/lib/auth';
-import redis, { REDIS_KEYS } from '@/lib/redis';
 import { format } from 'date-fns';
+import prisma from '@/lib/prisma';
+import { getAuthFromRequest } from '@/lib/auth';
+import { tenantWhere, withMongoId } from '@/lib/prisma-utils';
+import redis, { REDIS_KEYS } from '@/lib/redis';
 
 export async function GET(req: NextRequest) {
   try {
@@ -16,41 +15,52 @@ export async function GET(req: NextRequest) {
     const cls = searchParams.get('class');
     const section = searchParams.get('section');
     const studentId = searchParams.get('studentId');
+    const subject = searchParams.get('subject');
+    const period = searchParams.get('period');
 
-    // Try cache for today's data
     if (date === format(new Date(), 'yyyy-MM-dd') && !studentId) {
-      const cacheKey = REDIS_KEYS.dashboardCache(`${date}-${cls || 'all'}-${section || 'all'}`);
+      const cacheKey = REDIS_KEYS.dashboardCache(`${date}-${cls || 'all'}-${section || 'all'}-${subject || 'all'}-${period || 'all'}`);
       const cached = await redis.get(cacheKey);
-      if (cached) {
-        return NextResponse.json(JSON.parse(cached));
-      }
+      if (cached) return NextResponse.json(JSON.parse(cached));
     }
 
-    await connectDB();
+    const where = {
+      ...tenantWhere(auth),
+      date,
+      ...(cls ? { class: cls } : {}),
+      ...(section ? { section } : {}),
+      ...(studentId ? { studentId } : {}),
+      ...(subject ? { subject } : {}),
+      ...(period ? { period } : {}),
+    };
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const query: any = { date };
-    if (cls) query.class = cls;
-    if (section) query.section = section;
-    if (studentId) query.studentId = studentId;
+    const attendanceRecords = await prisma.attendance.findMany({
+      where,
+      orderBy: { markedAt: 'desc' },
+    });
 
-    const records = await Attendance.find(query)
-      .populate('studentId', 'name studentId class section rollNumber email')
-      .sort({ markedAt: -1 })
-      .lean();
+    const studentIds = Array.from(new Set(attendanceRecords.map((record) => record.studentId)));
+    const students = studentIds.length
+      ? await prisma.student.findMany({ where: { id: { in: studentIds } } })
+      : [];
 
-    // Get total students for this class/section
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const studentQuery: any = { active: true };
-    if (cls) studentQuery.class = cls;
-    if (section) studentQuery.section = section;
-    const totalStudents = await Student.countDocuments(studentQuery);
+    const studentMap = new Map(students.map((student) => [student.id, withMongoId(student)]));
+    const records = attendanceRecords.map((record) => ({
+      ...withMongoId(record),
+      studentId: studentMap.get(record.studentId) || record.studentId,
+    }));
 
+    const studentWhere = {
+      ...tenantWhere(auth),
+      active: true,
+      ...(cls ? { class: cls } : {}),
+      ...(section ? { section } : {}),
+    };
+    const totalStudents = await prisma.student.count({ where: studentWhere });
     const result = { records, totalStudents, date };
 
-    // Cache for 30 seconds
     if (date === format(new Date(), 'yyyy-MM-dd') && !studentId) {
-      const cacheKey = REDIS_KEYS.dashboardCache(`${date}-${cls || 'all'}-${section || 'all'}`);
+      const cacheKey = REDIS_KEYS.dashboardCache(`${date}-${cls || 'all'}-${section || 'all'}-${subject || 'all'}-${period || 'all'}`);
       await redis.setex(cacheKey, 30, JSON.stringify(result));
     }
 

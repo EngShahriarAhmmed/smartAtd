@@ -1,0 +1,35 @@
+services:
+  app:
+    build: .
+    container_name: smart-qr-attendance-app
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    depends_on:
+      - mongo
+      - redis
+    ports:
+      - "3000:3000"
+
+  mongo:
+    image: mongo:7
+    container_name: smart-qr-attendance-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  redis:
+    image: redis:7-alpine
+    container_name: smart-qr-attendance-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+
+volumes:
+  mongo_data:
+  redis_data:

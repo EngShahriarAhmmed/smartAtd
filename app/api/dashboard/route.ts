@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/mongodb';
-import { Attendance } from '@/models/Attendance';
-import { Student } from '@/models/Student';
-import { ClassSession } from '@/models/ClassSession';
-import { getAuthFromRequest } from '@/lib/auth';
-import redis, { REDIS_KEYS } from '@/lib/redis';
 import { format } from 'date-fns';
+import prisma from '@/lib/prisma';
+import { getAuthFromRequest } from '@/lib/auth';
+import { tenantWhere, withMongoId } from '@/lib/prisma-utils';
+import redis, { REDIS_KEYS } from '@/lib/redis';
 
 export async function GET(req: NextRequest) {
   try {
@@ -13,37 +11,37 @@ export async function GET(req: NextRequest) {
     if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const today = format(new Date(), 'yyyy-MM-dd');
-    const cacheKey = REDIS_KEYS.dashboardCache(today);
+    const cacheKey = REDIS_KEYS.dashboardCache(`${auth.institutionId || 'global'}:${today}`);
     const cached = await redis.get(cacheKey);
     if (cached) return NextResponse.json(JSON.parse(cached));
 
-    await connectDB();
-
-    const [totalStudents, presentToday, lateToday, recentAttendance, sessions] = await Promise.all([
-      Student.countDocuments({ active: true }),
-      Attendance.countDocuments({ date: today, status: 'present' }),
-      Attendance.countDocuments({ date: today, status: 'late' }),
-      Attendance.find({ date: today })
-        .populate('studentId', 'name studentId class section')
-        .sort({ markedAt: -1 })
-        .limit(10)
-        .lean(),
-      ClassSession.find({ date: today, active: true }).lean(),
+    const scoped = tenantWhere(auth);
+    const [totalStudents, presentToday, lateToday, recentAttendanceRaw, sessions, classGroups] = await Promise.all([
+      prisma.student.count({ where: { ...scoped, active: true } }),
+      prisma.attendance.count({ where: { ...scoped, date: today, status: 'present' } }),
+      prisma.attendance.count({ where: { ...scoped, date: today, status: 'late' } }),
+      prisma.attendance.findMany({ where: { ...scoped, date: today }, orderBy: { markedAt: 'desc' }, take: 10 }),
+      prisma.classSession.findMany({ where: { date: today, active: true } }),
+      prisma.student.groupBy({ by: ['class', 'section'], where: { ...scoped, active: true }, _count: { _all: true } }),
     ]);
 
-    // Per-class stats
-    const classGroups = await Student.aggregate([
-      { $match: { active: true } },
-      { $group: { _id: { class: '$class', section: '$section' }, total: { $sum: 1 } } },
-    ]);
+    const recentStudentIds = Array.from(new Set(recentAttendanceRaw.map((item) => item.studentId)));
+    const recentStudents = recentStudentIds.length ? await prisma.student.findMany({ where: { id: { in: recentStudentIds } } }) : [];
+    const recentMap = new Map(recentStudents.map((student) => [student.id, withMongoId(student)]));
+    const recentAttendance = recentAttendanceRaw.map((record) => ({ ...withMongoId(record), studentId: recentMap.get(record.studentId) || record.studentId }));
 
     const classStats = await Promise.all(
-      classGroups.map(async (g) => {
-        const present = await Attendance.countDocuments({
-          class: g._id.class, section: g._id.section,
-          date: today, status: { $in: ['present', 'late'] },
+      classGroups.map(async (group) => {
+        const present = await prisma.attendance.count({
+          where: {
+            ...scoped,
+            class: group.class,
+            section: group.section,
+            date: today,
+            status: { in: ['present', 'late'] },
+          },
         });
-        return { class: `${g._id.class}-${g._id.section}`, present, total: g.total };
+        return { class: `${group.class}-${group.section}`, present, total: group._count._all };
       })
     );
 
@@ -51,7 +49,7 @@ export async function GET(req: NextRequest) {
       totalStudents,
       presentToday: presentToday + lateToday,
       lateToday,
-      absentToday: totalStudents - presentToday - lateToday,
+      absentToday: Math.max(totalStudents - presentToday - lateToday, 0),
       attendanceRate: totalStudents > 0 ? Math.round(((presentToday + lateToday) / totalStudents) * 100) : 0,
       recentAttendance,
       classStats,

@@ -1,34 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-import { connectDB } from '@/lib/mongodb';
-import { Student } from '@/models/Student';
+import prisma from '@/lib/prisma';
 import { getAuthFromRequest } from '@/lib/auth';
+import { tenantWhere } from '@/lib/prisma-utils';
 
 export async function POST(req: NextRequest) {
   try {
     const auth = getAuthFromRequest(req);
     if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    await connectDB();
-
     const body = await req.json();
     const ids = body.ids;
 
     if (!Array.isArray(ids) || ids.length === 0) {
-      return NextResponse.json(
-        { error: 'Student IDs are required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Student IDs are required' }, { status: 400 });
     }
 
-    const result = await Student.updateMany(
-      { _id: { $in: ids } },
-      { active: false }
-    );
+    const result = await prisma.student.updateMany({
+      where: { id: { in: ids }, ...tenantWhere(auth) },
+      data: { active: false },
+    });
 
     return NextResponse.json({
       message: 'Selected students removed successfully',
-      removedCount: result.modifiedCount,
+      removedCount: result.count,
     });
   } catch (error) {
     console.error(error);

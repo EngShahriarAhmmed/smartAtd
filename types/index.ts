@@ -1,5 +1,20 @@
+export type UserRole = 'super_admin' | 'institution_admin' | 'admin' | 'teacher' | 'student' | 'parent';
+export type AttendanceStatus = 'present' | 'absent' | 'late';
+
+export interface Institution {
+  _id: string;
+  name: string;
+  code: string;
+  address?: string;
+  logo?: string;
+  status: 'active' | 'inactive' | 'suspended';
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Student {
   _id: string;
+  institutionId?: string;
   studentId: string;
   name: string;
   email: string;
@@ -7,20 +22,74 @@ export interface Student {
   section: string;
   rollNumber: string;
   phone?: string;
+  guardianName?: string;
+  guardianPhone?: string;
+  photo?: string;
   qrToken: string;
   active: boolean;
+  status?: string;
   createdAt: string;
   updatedAt: string;
 }
 
+export interface Teacher {
+  _id: string;
+  institutionId?: string;
+  employeeId: string;
+  name: string;
+  designation?: string;
+  department?: string;
+  photo?: string;
+  phone?: string;
+  email?: string;
+  active: boolean;
+}
+
+export interface AcademicClass {
+  _id: string;
+  institutionId?: string;
+  name: string;
+  code?: string;
+  active: boolean;
+}
+
+export interface Section {
+  _id: string;
+  institutionId?: string;
+  classId?: string;
+  className?: string;
+  name: string;
+  active: boolean;
+}
+
+export interface Subject {
+  _id: string;
+  institutionId?: string;
+  name: string;
+  code: string;
+  active: boolean;
+}
+
+export interface Period {
+  _id: string;
+  institutionId?: string;
+  periodName: string;
+  startTime: string;
+  endTime: string;
+  active: boolean;
+}
+
 export interface AttendanceRecord {
   _id: string;
-  studentId: string;
-  student: Student;
+  studentId: string | Student;
+  student?: Student;
+  teacherId?: string;
   class: string;
   section: string;
+  subject?: string;
+  period?: string;
   date: string;
-  status: 'present' | 'absent' | 'late';
+  status: AttendanceStatus;
   markedAt: string;
   markedBy: string;
   sessionToken?: string;
@@ -43,7 +112,8 @@ export interface User {
   _id: string;
   email: string;
   name: string;
-  role: 'admin' | 'teacher';
+  role: UserRole;
+  institutionId?: string;
   active: boolean;
 }
 

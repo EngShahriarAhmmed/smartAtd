@@ -10,6 +10,7 @@ declare global {
 const redis: Redis = global.redis || new Redis(REDIS_URL, {
   maxRetriesPerRequest: 3,
   lazyConnect: true,
+  enableOfflineQueue: true,
 });
 
 if (process.env.NODE_ENV !== 'production') {
@@ -18,13 +19,13 @@ if (process.env.NODE_ENV !== 'production') {
 
 export default redis;
 
-// Key helpers
 export const REDIS_KEYS = {
   qrSession: (token: string) => `qr:session:${token}`,
-  attendanceRateLimit: (studentId: string) => `attendance:ratelimit:${studentId}`,
-  dashboardCache: (date: string) => `dashboard:cache:${date}`,
+  attendanceRateLimit: (studentId: string, date = 'today') => `attendance:ratelimit:${date}:${studentId}`,
+  dashboardCache: (key: string) => `dashboard:cache:${key}`,
   activeQR: (classId: string) => `qr:active:${classId}`,
+  reportCache: (key: string) => `report:cache:${key}`,
 };
 
 export const QR_EXPIRY = parseInt(process.env.QR_CODE_EXPIRY || '30');
-export const RATE_LIMIT_WINDOW = 60; // 60 seconds between marks
+export const RATE_LIMIT_WINDOW = parseInt(process.env.ATTENDANCE_RATE_LIMIT_SECONDS || '10');
