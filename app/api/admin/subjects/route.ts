@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { duplicateError, tenantWhere, withMongoId, withMongoIds } from '@/lib/prisma-utils';
+import { deletionScope, duplicateError, tenantWhere, withMongoId, withMongoIds } from '@/lib/prisma-utils';
 import { ROLE_GROUPS, requireAuth } from '@/lib/rbac';
 
 export async function GET(req: NextRequest) {
@@ -10,7 +10,8 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const active = searchParams.get('active');
-    const where = { ...tenantWhere(auth), ...(active === 'true' ? { active: true } : {}), ...(active === 'false' ? { active: false } : {}) };
+    const deleted = searchParams.get('deleted') === 'true';
+    const where = { ...tenantWhere(auth), ...deletionScope(deleted), ...(active === 'true' ? { active: true } : {}), ...(active === 'false' ? { active: false } : {}) };
     const items = await prisma.subject.findMany({ where, orderBy: { createdAt: 'desc' } });
     return NextResponse.json({ items: withMongoIds(items) });
   } catch (error) {
@@ -26,7 +27,7 @@ export async function POST(req: NextRequest) {
 
     const { name, code, active = true } = await req.json();
     if (!name || !code) return NextResponse.json({ error: 'Name and code are required' }, { status: 400 });
-    const item = await prisma.subject.create({ data: { name, code, active, institutionId: auth.institutionId } });
+    const item = await prisma.subject.create({ data: { name, code, active: typeof active === 'boolean' ? active : String(active) !== 'false', institutionId: auth.institutionId } });
     return NextResponse.json({ item: withMongoId(item) }, { status: 201 });
   } catch (error: unknown) {
     console.error(error);

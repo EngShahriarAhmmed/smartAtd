@@ -1,1 +1,2 @@
-export { runtime, POST } from '../uploads/route';
+export const runtime = 'nodejs';
+export { POST } from '../uploads/route';

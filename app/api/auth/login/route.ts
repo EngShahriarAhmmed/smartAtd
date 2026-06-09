@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import prisma from '@/lib/prisma';
 import { signRefreshToken, signToken } from '@/lib/auth';
-import { withMongoId } from '@/lib/prisma-utils';
+import { notDeletedWhere, withMongoId } from '@/lib/prisma-utils';
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
     }
 
     const user = await prisma.user.findFirst({
-      where: { email: String(email).toLowerCase(), active: true },
+      where: { email: String(email).toLowerCase(), active: true, ...notDeletedWhere() },
     });
 
     if (!user) {

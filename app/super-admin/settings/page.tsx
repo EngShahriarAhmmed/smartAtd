@@ -1,1 +1,27 @@
-export default function PlatformSettingsPage(){return <div><div className="mb-6"><h1 className="m-0 text-2xl font-black text-slate-900">Platform Settings</h1><p className="mt-1 text-sm text-slate-500">Configure SaaS-level security, tenant defaults, notification providers and system limits.</p></div><div className="grid grid-cols-1 gap-4 lg:grid-cols-3"><div className="card p-6"><h2 className="font-black">Security</h2><p className="mt-2 text-sm text-slate-500">JWT, refresh token, QR encryption and RBAC controls.</p></div><div className="card p-6"><h2 className="font-black">Notifications</h2><p className="mt-2 text-sm text-slate-500">SMS, email and push notification providers.</p></div><div className="card p-6"><h2 className="font-black">Multi-Tenant Defaults</h2><p className="mt-2 text-sm text-slate-500">Institution limits, storage mode and platform defaults.</p></div></div></div>}
+'use client';
+import SimpleResourcePage from '@/components/SimpleResourcePage';
+
+export default function PlatformSettingsPage() {
+  return (
+    <SimpleResourcePage
+      title="Platform Settings"
+      description="Configure SaaS-level security, tenant defaults, notification providers and system limits."
+      endpoint="/api/super-admin/settings"
+      formTitle="Add Platform Setting"
+      fields={[
+        { name: 'category', label: 'Category', type: 'select', required: true, options: [{ label: 'Security', value: 'Security' }, { label: 'Notifications', value: 'Notifications' }, { label: 'Tenant Defaults', value: 'Tenant Defaults' }, { label: 'System Limits', value: 'System Limits' }] },
+        { name: 'key', label: 'Setting Key', required: true, placeholder: 'jwt.expiry.minutes' },
+        { name: 'value', label: 'Setting Value', required: true, placeholder: '15' },
+        { name: 'notes', label: 'Notes', type: 'textarea' },
+        { name: 'status', label: 'Status', type: 'select', required: true, options: [{ label: 'Active', value: 'active' }, { label: 'Inactive', value: 'inactive' }, { label: 'Suspended', value: 'suspended' }] },
+      ]}
+      columns={[
+        { key: 'category', label: 'Category' },
+        { key: 'key', label: 'Key' },
+        { key: 'value', label: 'Value' },
+        { key: 'notes', label: 'Notes' },
+        { key: 'status', label: 'Status' },
+      ]}
+    />
+  );
+}

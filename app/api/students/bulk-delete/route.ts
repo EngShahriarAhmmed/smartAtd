@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getAuthFromRequest } from '@/lib/auth';
-import { tenantWhere } from '@/lib/prisma-utils';
+import { safeDeleteData, tenantWhere } from '@/lib/prisma-utils';
 
 export async function POST(req: NextRequest) {
   try {
@@ -17,11 +17,11 @@ export async function POST(req: NextRequest) {
 
     const result = await prisma.student.updateMany({
       where: { id: { in: ids }, ...tenantWhere(auth) },
-      data: { active: false },
+      data: safeDeleteData(auth, { active: false, status: 'inactive' }),
     });
 
     return NextResponse.json({
-      message: 'Selected students removed successfully',
+      message: 'Selected students moved to deleted records.',
       removedCount: result.count,
     });
   } catch (error) {

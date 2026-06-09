@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
+import type { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { getAuthFromRequest } from '@/lib/auth';
-import { duplicateError, tenantWhere, withMongoId, withMongoIds } from '@/lib/prisma-utils';
+import { deletionScope, duplicateError, tenantWhere, withMongoId, withMongoIds } from '@/lib/prisma-utils';
 
 export async function GET(req: NextRequest) {
   try {
@@ -13,16 +14,18 @@ export async function GET(req: NextRequest) {
     const cls = searchParams.get('class');
     const section = searchParams.get('section');
     const search = searchParams.get('search');
+    const deleted = searchParams.get('deleted') === 'true';
     const page = Math.max(Number(searchParams.get('page')) || 1, 1);
     const limit = Math.min(Math.max(Number(searchParams.get('limit')) || 10, 1), 100);
     const skip = (page - 1) * limit;
 
-    const where = {
-      ...tenantWhere(auth),
-      active: true,
-      ...(cls ? { class: cls } : {}),
-      ...(section ? { section } : {}),
-      ...(search
+    const andFilters: Prisma.StudentWhereInput[] = [
+      tenantWhere(auth),
+      deletionScope(deleted),
+      deleted ? {} : { active: true },
+      cls ? { class: cls } : {},
+      section ? { section } : {},
+      search
         ? {
             OR: [
               { name: { contains: search, mode: 'insensitive' as const } },
@@ -30,8 +33,10 @@ export async function GET(req: NextRequest) {
               { email: { contains: search, mode: 'insensitive' as const } },
             ],
           }
-        : {}),
-    };
+        : {},
+    ].filter((item) => Object.keys(item).length > 0);
+
+    const where = { AND: andFilters };
 
     const [students, total] = await Promise.all([
       prisma.student.findMany({

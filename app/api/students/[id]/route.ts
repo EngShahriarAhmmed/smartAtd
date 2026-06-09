@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import prisma from '@/lib/prisma';
 import { getAuthFromRequest } from '@/lib/auth';
-import { duplicateError, tenantWhere, withMongoId } from '@/lib/prisma-utils';
+import { duplicateError, restoreData, safeDeleteData, tenantWhere, withMongoId } from '@/lib/prisma-utils';
 
 async function findScopedStudent(id: string, auth: ReturnType<typeof getAuthFromRequest>) {
   if (!auth) return null;
@@ -77,8 +77,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const existing = await findScopedStudent(id, auth);
     if (!existing) return NextResponse.json({ error: 'Student not found' }, { status: 404 });
 
-    const student = await prisma.student.update({ where: { id }, data: { qrToken: uuidv4() } });
-    return NextResponse.json({ student: withMongoId(student) });
+    const body = await req.json().catch(() => ({}));
+    const student = body.restore
+      ? await prisma.student.update({ where: { id }, data: restoreData({ active: true, status: 'active' }) })
+      : await prisma.student.update({ where: { id }, data: { qrToken: uuidv4() } });
+
+    return NextResponse.json({ student: withMongoId(student), message: body.restore ? 'Student restored successfully.' : 'QR token regenerated successfully.' });
   } catch (error) {
     console.error(error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -94,8 +98,15 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     const existing = await findScopedStudent(id, auth);
     if (!existing) return NextResponse.json({ error: 'Student not found' }, { status: 404 });
 
-    await prisma.student.update({ where: { id }, data: { active: false } });
-    return NextResponse.json({ message: 'Student removed successfully' });
+    const permanent = new URL(req.url).searchParams.get('permanent') === 'true';
+    if (permanent) {
+      if (!existing.deletedAt) return NextResponse.json({ error: 'Safe delete this student before permanent delete.' }, { status: 400 });
+      await prisma.student.delete({ where: { id } });
+      return NextResponse.json({ message: 'Student permanently deleted.' });
+    }
+
+    await prisma.student.update({ where: { id }, data: safeDeleteData(auth, { active: false, status: 'inactive' }) });
+    return NextResponse.json({ message: 'Student moved to deleted records.' });
   } catch (error) {
     console.error(error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

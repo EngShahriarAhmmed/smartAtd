@@ -17,6 +17,7 @@ import {
   Pencil,
   Eye,
   Trash2,
+  RotateCcw,
   Upload,
   Plus,
   UserRound,
@@ -37,6 +38,7 @@ interface Student {
   section: string;
   rollNumber: string;
   phone?: string;
+  deletedAt?: string | null;
 }
 
 interface Pagination {
@@ -306,6 +308,7 @@ export default function StudentsPage() {
 
   const [showForm, setShowForm] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
+  const [showDeleted, setShowDeleted] = useState(false);
 
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -317,9 +320,11 @@ export default function StudentsPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [toast, setToast] = useState<ToastState | null>(null);
   const [viewStudent, setViewStudent] = useState<Student | null>(null);
+  const [classOptions, setClassOptions] = useState<string[]>([]);
+  const [sectionOptions, setSectionOptions] = useState<string[]>([]);
 
-  const classes = ['6', '7', '8', '9', '10', '11', '12'];
-  const sections = ['A', 'B', 'C', 'D'];
+  const classes = classOptions.length ? classOptions : ['6', '7', '8', '9', '10', '11', '12'];
+  const sections = sectionOptions.length ? sectionOptions : ['A', 'B', 'C', 'D'];
   const pageSizeOptions = [10, 25, 50, 100];
 
   useEffect(() => {
@@ -331,6 +336,39 @@ export default function StudentsPage() {
 
     return () => window.clearTimeout(timer);
   }, [toast]);
+
+
+  useEffect(() => {
+    async function loadMasterData() {
+      try {
+        const [classRes, sectionRes] = await Promise.all([
+          fetch('/api/admin/classes', { cache: 'no-store' }),
+          fetch('/api/admin/sections', { cache: 'no-store' }),
+        ]);
+        const classData = await classRes.json();
+        const sectionData = await sectionRes.json();
+
+        if (classRes.ok) {
+          const names = (classData.items || [])
+            .map((item: { name?: string }) => item.name)
+            .filter((name: string | undefined): name is string => Boolean(name));
+          setClassOptions(names);
+        }
+
+        if (sectionRes.ok) {
+          const names = (sectionData.items || [])
+            .map((item: { name?: string }) => item.name)
+            .filter((name: string | undefined): name is string => Boolean(name));
+          setSectionOptions(names);
+        }
+      } catch {
+        setClassOptions([]);
+        setSectionOptions([]);
+      }
+    }
+
+    loadMasterData();
+  }, []);
 
   const showToast = useCallback(
     (type: ToastType, message: string, details?: string) => {
@@ -347,6 +385,7 @@ export default function StudentsPage() {
 
       if (appliedSearch) params.set('search', appliedSearch);
       if (filterClass) params.set('class', filterClass);
+      params.set('deleted', showDeleted ? 'true' : 'false');
 
       params.set('page', String(pagination.page));
       params.set('limit', String(pagination.limit));
@@ -376,6 +415,7 @@ export default function StudentsPage() {
   }, [
     appliedSearch,
     filterClass,
+    showDeleted,
     pagination.page,
     pagination.limit,
     showToast,
@@ -541,10 +581,11 @@ export default function StudentsPage() {
   }
 
   async function deleteStudent(id: string, name: string) {
-    if (!confirm(`Remove ${name}?`)) return;
+    const permanent = showDeleted;
+    if (!confirm(permanent ? `Permanently delete ${name}? This cannot be undone.` : `Remove ${name}? It will move to deleted records.`)) return;
 
     try {
-      const res = await fetch(`/api/students/${id}`, {
+      const res = await fetch(`/api/students/${id}${permanent ? '?permanent=true' : ''}`, {
         method: 'DELETE',
       });
 
@@ -555,10 +596,34 @@ export default function StudentsPage() {
         return;
       }
 
-      showToast('success', 'Student removed successfully.', name);
+      showToast('success', data.message || (permanent ? 'Student permanently deleted.' : 'Student moved to deleted records.'), name);
       fetchStudents();
     } catch {
       showToast('error', 'Unable to remove student');
+    }
+  }
+
+  async function restoreStudent(id: string, name: string) {
+    if (!confirm(`Restore ${name}?`)) return;
+
+    try {
+      const res = await fetch(`/api/students/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ restore: true }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        showToast('error', data.error || 'Failed to restore student');
+        return;
+      }
+
+      showToast('success', data.message || 'Student restored successfully.', name);
+      fetchStudents();
+    } catch {
+      showToast('error', 'Unable to restore student');
     }
   }
 
@@ -669,51 +734,80 @@ export default function StudentsPage() {
           </h1>
 
           <p className="m-0 text-sm text-slate-500">
-            {pagination.total} students registered
+            {pagination.total} {showDeleted ? 'deleted' : 'active'} students
           </p>
         </div>
 
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            disabled={!selectedIds.length}
-            onClick={bulkDeleteStudents}
-            className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-red-100 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-sm"
-          >
-            <Trash2 size={16} />
-            Remove Selected {selectedIds.length ? `(${selectedIds.length})` : ''}
-          </button>
-
-          <button
-            type="button"
             onClick={() => {
-              setShowUpload(!showUpload);
+              setShowDeleted((value) => !value);
               setShowForm(false);
-              setEditingId(null);
-              setViewStudent(null);
-              setToast(null);
-            }}
-            className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-blue-100 hover:shadow-md"
-          >
-            <Upload size={16} />
-            Upload Excel
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setShowForm(true);
               setShowUpload(false);
               setEditingId(null);
+              setSelectedIds([]);
               setViewStudent(null);
-              setForm(emptyForm);
               setToast(null);
             }}
-            className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-800 hover:shadow-md"
+            className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${showDeleted ? 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
           >
-            <Plus size={16} />
-            Add Student
+            <Trash2 size={16} />
+            {showDeleted ? 'Show Active Data' : 'Show Deleted Data'}
           </button>
+
+          {!showDeleted && (
+            <button
+              type="button"
+              disabled={!selectedIds.length}
+              onClick={bulkDeleteStudents}
+              className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-red-100 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-sm"
+            >
+              <Trash2 size={16} />
+              Remove Selected {selectedIds.length ? `(${selectedIds.length})` : ''}
+            </button>
+          )}
+
+          {!showDeleted && (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowUpload(!showUpload);
+                  setShowForm(false);
+                  setEditingId(null);
+                  setViewStudent(null);
+                  setToast(null);
+                }}
+                className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-blue-100 hover:shadow-md"
+              >
+                <Upload size={16} />
+                {showUpload ? 'Hide Upload' : 'Upload Excel'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (showForm && !editingId) {
+                    setShowForm(false);
+                    setForm(emptyForm);
+                    setToast(null);
+                    return;
+                  }
+                  setShowForm(true);
+                  setShowUpload(false);
+                  setEditingId(null);
+                  setViewStudent(null);
+                  setForm(emptyForm);
+                  setToast(null);
+                }}
+                className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-800 hover:shadow-md"
+              >
+                {showForm && !editingId ? <X size={16} /> : <Plus size={16} />}
+                {showForm && !editingId ? 'Hide Form' : 'Add Student'}
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -977,7 +1071,7 @@ export default function StudentsPage() {
         ) : students.length === 0 ? (
           <div className="p-12 text-center text-slate-400">
             <div className="mb-2 text-4xl">👥</div>
-            <p>No students found. Add your first student!</p>
+            <p>{showDeleted ? 'No deleted students found.' : 'No students found. Add your first student!'}</p>
           </div>
         ) : (
           <>
@@ -985,18 +1079,21 @@ export default function StudentsPage() {
               <table>
                 <thead>
                   <tr>
-                    <th>
-                      <input
-                        type="checkbox"
-                        checked={allCurrentPageSelected}
-                        onChange={toggleSelectAll}
-                      />
-                    </th>
+                    {!showDeleted && (
+                      <th>
+                        <input
+                          type="checkbox"
+                          checked={allCurrentPageSelected}
+                          onChange={toggleSelectAll}
+                        />
+                      </th>
+                    )}
                     <th>Student</th>
                     <th>ID</th>
                     <th>Class</th>
                     <th>Roll</th>
                     <th>Email</th>
+                    {showDeleted && <th>Deleted At</th>}
                     <th>Actions</th>
                   </tr>
                 </thead>
@@ -1004,13 +1101,15 @@ export default function StudentsPage() {
                 <tbody>
                   {students.map((s) => (
                     <tr key={s._id}>
-                      <td>
-                        <input
-                          type="checkbox"
-                          checked={selectedIds.includes(s._id)}
-                          onChange={() => toggleSelect(s._id)}
-                        />
-                      </td>
+                      {!showDeleted && (
+                        <td>
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.includes(s._id)}
+                            onChange={() => toggleSelect(s._id)}
+                          />
+                        </td>
+                      )}
 
                       <td className="font-semibold text-slate-900">
                         {s.name}
@@ -1032,6 +1131,12 @@ export default function StudentsPage() {
                         {s.email}
                       </td>
 
+                      {showDeleted && (
+                        <td className="text-sm text-slate-500">
+                          {s.deletedAt ? new Date(s.deletedAt).toLocaleString() : '—'}
+                        </td>
+                      )}
+
                       <td>
                         <div className="flex flex-wrap gap-2">
                           <ActionIconButton
@@ -1042,21 +1147,43 @@ export default function StudentsPage() {
                             <Eye size={16} />
                           </ActionIconButton>
 
-                          <ActionIconButton
-                            label="Edit student"
-                            onClick={() => startEdit(s)}
-                            className="border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-                          >
-                            <Pencil size={16} />
-                          </ActionIconButton>
+                          {showDeleted ? (
+                            <>
+                              <ActionIconButton
+                                label="Restore student"
+                                onClick={() => restoreStudent(s._id, s.name)}
+                                className="border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                              >
+                                <RotateCcw size={16} />
+                              </ActionIconButton>
 
-                          <ActionIconButton
-                            label="Remove student"
-                            onClick={() => deleteStudent(s._id, s.name)}
-                            className="border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
-                          >
-                            <Trash2 size={16} />
-                          </ActionIconButton>
+                              <ActionIconButton
+                                label="Permanent delete"
+                                onClick={() => deleteStudent(s._id, s.name)}
+                                className="border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+                              >
+                                <Trash2 size={16} />
+                              </ActionIconButton>
+                            </>
+                          ) : (
+                            <>
+                              <ActionIconButton
+                                label="Edit student"
+                                onClick={() => startEdit(s)}
+                                className="border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                              >
+                                <Pencil size={16} />
+                              </ActionIconButton>
+
+                              <ActionIconButton
+                                label="Remove student"
+                                onClick={() => deleteStudent(s._id, s.name)}
+                                className="border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+                              >
+                                <Trash2 size={16} />
+                              </ActionIconButton>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>

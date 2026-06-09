@@ -11,6 +11,32 @@ export async function POST() {
       create: { name: 'Demo Institution', code: 'DEMO', address: 'Dhaka, Bangladesh', status: 'active' },
     });
 
+
+    for (const [name, price, studentLimit, features] of [
+      ['Basic', '৳0', 500, 'QR attendance, core reports, demo usage'],
+      ['Professional', 'Custom', 2500, 'QR attendance, reports, SMS and Excel export'],
+      ['Enterprise', 'Custom', 10000, 'Multi-campus, advanced analytics and priority support'],
+    ] as const) {
+      await prisma.subscriptionPlan.upsert({
+        where: { name },
+        update: { price, studentLimit, features, status: 'active' },
+        create: { name, price, studentLimit, features, status: 'active' },
+      });
+    }
+
+    for (const [category, key, value, notes] of [
+      ['Security', 'jwt.expiry.minutes', '15', 'Access token expiry in minutes'],
+      ['Security', 'password.minimum.length', '8', 'Minimum password length'],
+      ['Notifications', 'sms.provider', 'manual', 'Replace with production SMS gateway'],
+      ['Tenant Defaults', 'default.student.limit', '500', 'Default limit for new institutions'],
+    ] as const) {
+      await prisma.platformSetting.upsert({
+        where: { category_key: { category, key } },
+        update: { value, notes, status: 'active' },
+        create: { category, key, value, notes, status: 'active' },
+      });
+    }
+
     const adminEmail = (process.env.ADMIN_EMAIL || 'admin@school.com').toLowerCase();
     const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
     const adminHash = await bcrypt.hash(adminPassword, 12);
@@ -67,13 +93,28 @@ export async function POST() {
       seededClasses.set(c, classItem.id);
     }
 
-    for (const cls of ['9', '10']) {
-      const classId = seededClasses.get(cls)!;
-      for (const sec of ['A', 'B']) {
-        await prisma.section.upsert({
-          where: { institutionId_classId_name: { institutionId: institution.id, classId, name: sec } },
-          update: { className: cls, active: true },
-          create: { institutionId: institution.id, classId, className: cls, name: sec, active: true },
+    for (const sec of ['A', 'B']) {
+      const existingSections = await prisma.section.findMany({
+        where: { institutionId: institution.id, name: sec },
+        orderBy: { createdAt: 'asc' },
+      });
+
+      if (existingSections.length) {
+        const [primary, ...duplicates] = existingSections;
+        await prisma.section.update({
+          where: { id: primary.id },
+          data: { classId: null, className: null, active: true, deletedAt: null, deletedBy: null },
+        });
+
+        for (const duplicate of duplicates) {
+          await prisma.section.update({
+            where: { id: duplicate.id },
+            data: { active: false, deletedAt: duplicate.deletedAt ?? new Date(), deletedBy: duplicate.deletedBy ?? null },
+          });
+        }
+      } else {
+        await prisma.section.create({
+          data: { institutionId: institution.id, classId: null, className: null, name: sec, active: true },
         });
       }
     }

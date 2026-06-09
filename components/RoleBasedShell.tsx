@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   BarChart3,
+  ChevronDown,
   Building2,
   CalendarClock,
   ClipboardCheck,
@@ -24,13 +25,14 @@ import {
   UserCog,
   Users,
   UserRound,
+  UserCircle,
   WalletCards,
   X,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { UserRole } from '@/types';
 import { getRoleHome, getRoleLabel } from '@/lib/role-home';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 type MenuItem = {
   href: string;
@@ -60,6 +62,7 @@ const ROLE_MENUS: Record<UserRole, MenuSection[]> = {
       items: [
         { href: '/super-admin/users', label: 'Platform Users', icon: UserCog },
         { href: '/super-admin/settings', label: 'Settings', icon: Settings },
+        { href: '/account', label: 'My Account', icon: UserCircle },
       ],
     },
   ],
@@ -87,7 +90,7 @@ const ROLE_MENUS: Record<UserRole, MenuSection[]> = {
     },
     {
       title: 'System',
-      items: [{ href: '/admin/settings', label: 'Settings', icon: Settings }],
+      items: [{ href: '/admin/settings', label: 'Institution Settings', icon: Settings }, { href: '/account', label: 'My Account', icon: UserCircle }],
     },
   ],
   admin: [
@@ -107,7 +110,7 @@ const ROLE_MENUS: Record<UserRole, MenuSection[]> = {
     },
     {
       title: 'System',
-      items: [{ href: '/admin/settings', label: 'Settings', icon: Settings }],
+      items: [{ href: '/admin/settings', label: 'Institution Settings', icon: Settings }, { href: '/account', label: 'My Account', icon: UserCircle }],
     },
   ],
   teacher: [
@@ -119,6 +122,7 @@ const ROLE_MENUS: Record<UserRole, MenuSection[]> = {
         { href: '/teacher/classes', label: 'My Classes', icon: GraduationCap },
         { href: '/teacher/attendance', label: 'Attendance History', icon: ClipboardList },
         { href: '/teacher/reports', label: 'Subject Reports', icon: FileBarChart },
+        { href: '/account', label: 'My Account', icon: UserCircle },
       ],
     },
   ],
@@ -131,6 +135,7 @@ const ROLE_MENUS: Record<UserRole, MenuSection[]> = {
         { href: '/student/subjects', label: 'Subject-wise Report', icon: GraduationCap },
         { href: '/student/id-card', label: 'ID Card', icon: IdCard },
         { href: '/student/history', label: 'History', icon: ClipboardList },
+        { href: '/account', label: 'My Account', icon: UserCircle },
       ],
     },
   ],
@@ -142,6 +147,7 @@ const ROLE_MENUS: Record<UserRole, MenuSection[]> = {
         { href: '/parent/attendance', label: 'Child Attendance', icon: BarChart3 },
         { href: '/parent/alerts', label: 'Absence Alerts', icon: MessageSquareWarning },
         { href: '/parent/reports', label: 'Reports', icon: FileBarChart },
+        { href: '/account', label: 'My Account', icon: UserCircle },
       ],
     },
   ],
@@ -168,6 +174,9 @@ export default function RoleBasedShell({
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [profile, setProfile] = useState<{ name?: string; email?: string; phone?: string; role?: string; active?: boolean } | null>(null);
+  const profileRef = useRef<HTMLDivElement | null>(null);
 
   const menu = ROLE_MENUS[userRole] || ROLE_MENUS.admin;
   const roleLabel = getRoleLabel(userRole);
@@ -178,8 +187,62 @@ export default function RoleBasedShell({
       const found = section.items.find((item) => isActive(pathname, item.href));
       if (found) return found.label;
     }
+    if (pathname.startsWith('/account')) return 'My Account';
     return 'Dashboard';
   }, [menu, pathname]);
+
+  useEffect(() => {
+    fetch('/api/auth/me', { cache: 'no-store' })
+      .then((res) => {
+        if (res.status === 401) {
+          router.replace('/login?expired=1');
+          return null;
+        }
+        return res.ok ? res.json() : null;
+      })
+      .then((data) => setProfile(data?.user || null))
+      .catch(() => setProfile(null));
+  }, [router]);
+
+  useEffect(() => {
+    const originalFetch = window.fetch.bind(window);
+    const ignoredAuthPaths = [
+      '/api/auth/login',
+      '/api/auth/logout',
+      '/api/auth/refresh',
+      '/api/auth/forgot-password',
+      '/api/auth/reset-password',
+    ];
+
+    window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const response = await originalFetch(input, init);
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+      const isApiRequest = url.includes('/api/');
+      const isIgnoredAuthRequest = ignoredAuthPaths.some((path) => url.includes(path));
+
+      if (response.status === 401 && isApiRequest && !isIgnoredAuthRequest) {
+        await originalFetch('/api/auth/logout', { method: 'POST' }).catch(() => undefined);
+        router.replace('/login?expired=1');
+      }
+
+      return response;
+    };
+
+    return () => {
+      window.fetch = originalFetch;
+    };
+  }, [router]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
+        setProfileOpen(false);
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   async function logout() {
     await fetch('/api/auth/logout', { method: 'POST' });
@@ -221,16 +284,6 @@ export default function RoleBasedShell({
           >
             <X size={18} />
           </button>
-        </div>
-
-        <div className="border-b border-slate-200 px-5 py-4">
-          <div className="rounded-3xl border border-blue-100 bg-gradient-to-br from-blue-50 to-emerald-50 p-4">
-            <div className="mb-2 inline-flex rounded-full bg-white px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-blue-700 shadow-sm">
-              {roleLabel}
-            </div>
-            <div className="truncate text-sm font-bold text-slate-900">{userEmail}</div>
-            <div className="mt-1 truncate text-xs text-slate-500">{institutionName || 'Institution Workspace'}</div>
-          </div>
         </div>
 
         <nav className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-5">
@@ -299,13 +352,48 @@ export default function RoleBasedShell({
               </div>
             </div>
 
-            <Link
-              href={home}
-              className="hidden items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 sm:flex"
-            >
-              <Home size={15} />
-              Home
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link
+                href={home}
+                className="hidden items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 sm:flex"
+              >
+                <Home size={15} />
+                Home
+              </Link>
+
+              <div className="relative" ref={profileRef}>
+                <button
+                  type="button"
+                  onClick={() => setProfileOpen((value) => !value)}
+                  className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                >
+                  <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-slate-900 text-white">
+                    <UserCircle size={17} />
+                  </span>
+                  <span className="hidden max-w-[160px] truncate md:block">{profile?.name || userEmail}</span>
+                  <ChevronDown size={15} />
+                </button>
+
+                {profileOpen && (
+                  <div className="absolute right-0 mt-2 w-80 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl shadow-slate-200/80">
+                    <div className="border-b border-slate-200 bg-gradient-to-br from-slate-900 to-blue-900 p-5 text-white">
+                      <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15"><UserCircle /></div>
+                      <div className="truncate text-base font-black">{profile?.name || 'User'}</div>
+                      <div className="truncate text-xs text-blue-100">{profile?.email || userEmail}</div>
+                      <div className="mt-2 inline-flex rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide">{roleLabel}</div>
+                    </div>
+                    <div className="space-y-2 p-3">
+                      <Link href="/account" onClick={() => setProfileOpen(false)} className="flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-100">
+                        <UserCog size={17} /> User Info & Change Password
+                      </Link>
+                      <button onClick={logout} className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-bold text-red-700 transition hover:bg-red-50">
+                        <LogOut size={17} /> Logout
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </header>
 

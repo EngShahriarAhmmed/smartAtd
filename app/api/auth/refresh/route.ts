@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import prisma from '@/lib/prisma';
 import { signToken, verifyRefreshToken } from '@/lib/auth';
+import { notDeletedWhere } from '@/lib/prisma-utils';
 
 export async function POST(req: NextRequest) {
   try {
@@ -11,7 +12,7 @@ export async function POST(req: NextRequest) {
     const payload = verifyRefreshToken(refreshToken);
     if (!payload) return NextResponse.json({ error: 'Invalid refresh token' }, { status: 401 });
 
-    const user = await prisma.user.findUnique({ where: { id: payload.userId } });
+    const user = await prisma.user.findFirst({ where: { id: payload.userId, ...notDeletedWhere() } });
     if (!user || !user.active) return NextResponse.json({ error: 'User disabled' }, { status: 401 });
 
     const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');

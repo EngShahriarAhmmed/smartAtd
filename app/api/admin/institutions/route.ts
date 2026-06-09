@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { duplicateError, withMongoId, withMongoIds } from '@/lib/prisma-utils';
+import { deletionScope, duplicateError, withMongoId, withMongoIds } from '@/lib/prisma-utils';
 import { ROLE_GROUPS, requireAuth } from '@/lib/rbac';
 import type { ActiveStatus } from '@prisma/client';
 
@@ -11,7 +11,12 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const active = searchParams.get('active');
-    const where = active === 'true' ? { status: 'active' as ActiveStatus } : active === 'false' ? { status: { not: 'active' as ActiveStatus } } : {};
+    const deleted = searchParams.get('deleted') === 'true';
+    const where = {
+      ...deletionScope(deleted),
+      ...(active === 'true' ? { status: 'active' as ActiveStatus } : {}),
+      ...(active === 'false' ? { status: { not: 'active' as ActiveStatus } } : {}),
+    };
     const items = await prisma.institution.findMany({ where, orderBy: { createdAt: 'desc' } });
     return NextResponse.json({ items: withMongoIds(items) });
   } catch (error) {

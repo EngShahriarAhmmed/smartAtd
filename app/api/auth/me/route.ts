@@ -1,15 +1,15 @@
 import { NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/auth';
 import prisma from '@/lib/prisma';
-import { withMongoId } from '@/lib/prisma-utils';
+import { notDeletedWhere, withMongoId } from '@/lib/prisma-utils';
 
 export async function GET() {
   try {
     const auth = await getAuthUser();
     if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const user = await prisma.user.findUnique({
-      where: { id: auth.userId },
+    const user = await prisma.user.findFirst({
+      where: { id: auth.userId, active: true, ...notDeletedWhere() },
       select: {
         id: true,
         institutionId: true,
@@ -23,7 +23,7 @@ export async function GET() {
       },
     });
 
-    if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     return NextResponse.json({ user: withMongoId(user) });
   } catch (error) {

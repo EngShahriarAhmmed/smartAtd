@@ -1,1 +1,27 @@
-export default function SubscriptionsPage(){return <div><div className="mb-6"><h1 className="m-0 text-2xl font-black text-slate-900">Subscriptions</h1><p className="mt-1 text-sm text-slate-500">Manage subscription plans, billing status, limits and renewals.</p></div><div className="grid grid-cols-1 gap-4 md:grid-cols-3"><div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"><h2 className="text-lg font-black">Basic</h2><p className="mt-2 text-sm text-slate-500">For small schools. Up to 500 students.</p><div className="mt-6 text-3xl font-black">৳0</div></div><div className="rounded-3xl border border-blue-200 bg-blue-50 p-6 shadow-sm"><h2 className="text-lg font-black text-blue-900">Professional</h2><p className="mt-2 text-sm text-blue-700">For colleges. QR, reports, SMS integration.</p><div className="mt-6 text-3xl font-black text-blue-900">Custom</div></div><div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-6 shadow-sm"><h2 className="text-lg font-black text-emerald-900">Enterprise</h2><p className="mt-2 text-sm text-emerald-700">Multi-campus and advanced analytics.</p><div className="mt-6 text-3xl font-black text-emerald-900">Custom</div></div></div></div>}
+'use client';
+import SimpleResourcePage from '@/components/SimpleResourcePage';
+
+export default function SubscriptionsPage() {
+  return (
+    <SimpleResourcePage
+      title="Subscriptions"
+      description="Manage subscription plans, billing status, limits and renewals."
+      endpoint="/api/super-admin/subscriptions"
+      formTitle="Add Subscription Plan"
+      fields={[
+        { name: 'name', label: 'Plan Name', required: true },
+        { name: 'price', label: 'Price', required: true, placeholder: '৳0 / Custom / ৳5,000' },
+        { name: 'studentLimit', label: 'Student Limit', placeholder: '500' },
+        { name: 'features', label: 'Features', type: 'textarea', placeholder: 'QR attendance, reports, SMS integration' },
+        { name: 'status', label: 'Status', type: 'select', required: true, options: [{ label: 'Active', value: 'active' }, { label: 'Inactive', value: 'inactive' }, { label: 'Suspended', value: 'suspended' }] },
+      ]}
+      columns={[
+        { key: 'name', label: 'Plan' },
+        { key: 'price', label: 'Price' },
+        { key: 'studentLimit', label: 'Student Limit' },
+        { key: 'features', label: 'Features' },
+        { key: 'status', label: 'Status' },
+      ]}
+    />
+  );
+}
