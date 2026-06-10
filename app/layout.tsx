@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import PWARegister from '@/components/PWARegister';
+import { ToastProvider } from '@/components/ToastProvider';
 
 export const metadata: Metadata = {
   title: 'Smart QR Attendance',
@@ -27,8 +28,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
-        {children}
-        <PWARegister />
+        <ToastProvider>
+          {children}
+          <PWARegister />
+        </ToastProvider>
       </body>
     </html>
   );

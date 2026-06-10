@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { format } from 'date-fns';
 import { Html5Qrcode } from 'html5-qrcode';
+import PaginationBar, { type PaginationState } from '@/components/PaginationBar';
 
 import {
   CheckCircle2,
@@ -79,6 +80,7 @@ const emptyMasterOptions: MasterOptions = {
 };
 
 const scannerRegionId = 'qr-reader';
+const emptyPagination: PaginationState = { page: 1, limit: 10, total: 0, totalPages: 1 };
 
 function ToastMessage({
   toast,
@@ -192,6 +194,7 @@ function StatCard({
 export default function AttendancePage() {
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [totalStudents, setTotalStudents] = useState(0);
+  const [pagination, setPagination] = useState<PaginationState>(emptyPagination);
   const [options, setOptions] = useState<MasterOptions>(emptyMasterOptions);
 
   const [loading, setLoading] = useState(true);
@@ -259,11 +262,11 @@ export default function AttendancePage() {
     []
   );
 
-  const fetchRecords = useCallback(async () => {
+  const fetchRecords = useCallback(async (page = pagination.page, limit = pagination.limit) => {
     setLoading(true);
 
     try {
-      const params = new URLSearchParams({ date });
+      const params = new URLSearchParams({ date, page: String(page), limit: String(limit) });
 
       if (filterClass) params.set('class', filterClass);
       if (filterSection) params.set('section', filterSection);
@@ -282,6 +285,7 @@ export default function AttendancePage() {
 
       setRecords(data.records || []);
       setTotalStudents(data.totalStudents || 0);
+      setPagination(data.pagination || { page, limit, total: data.records?.length || 0, totalPages: 1 });
     } catch {
       showToast('error', 'Unable to load attendance records.');
       setRecords([]);
@@ -289,7 +293,7 @@ export default function AttendancePage() {
     } finally {
       setLoading(false);
     }
-  }, [date, filterClass, filterSection, filterSubject, filterPeriod, showToast]);
+  }, [date, filterClass, filterSection, filterSubject, filterPeriod, pagination.limit, pagination.page, showToast]);
 
   useEffect(() => {
     fetchRecords();
@@ -984,6 +988,14 @@ export default function AttendancePage() {
               </tbody>
             </table>
           </div>
+        )}
+        {pagination.total > 0 && (
+          <PaginationBar
+            pagination={pagination}
+            onPageChange={(nextPage) => fetchRecords(nextPage, pagination.limit)}
+            onLimitChange={(nextLimit) => fetchRecords(1, nextLimit)}
+            label="attendance records"
+          />
         )}
       </div>
     </div>

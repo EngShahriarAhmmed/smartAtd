@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Eye, Loader2, Pencil, Plus, RefreshCw, RotateCcw, Search, Trash2, X } from 'lucide-react';
+import PaginationBar from '@/components/PaginationBar';
+import { useToast } from '@/components/ToastProvider';
 
 type Item = Record<string, string | boolean | undefined | null> & { _id?: string; id?: string; deletedAt?: string | null };
 type ResourceType = 'class' | 'section';
@@ -109,6 +111,10 @@ export default function ClassesPage() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [query, setQuery] = useState('');
+  const [classPage, setClassPage] = useState(1);
+  const [sectionPage, setSectionPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const toast = useToast();
 
   async function loadData() {
     setLoading(true);
@@ -136,6 +142,14 @@ export default function ClassesPage() {
 
   useEffect(() => { loadData(); }, [showDeleted]);
 
+  useEffect(() => {
+    if (!message) return;
+    if (message.ok) toast.success(message.text);
+    else toast.error(message.text);
+  }, [message, toast]);
+
+  useEffect(() => { setClassPage(1); setSectionPage(1); }, [query, showDeleted]);
+
   const filteredClasses = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) return classes;
@@ -147,6 +161,11 @@ export default function ClassesPage() {
     if (!needle) return sections;
     return sections.filter((item) => String(item.name || '').toLowerCase().includes(needle));
   }, [sections, query]);
+
+  const classTotalPages = Math.max(Math.ceil(filteredClasses.length / limit), 1);
+  const sectionTotalPages = Math.max(Math.ceil(filteredSections.length / limit), 1);
+  const pagedClasses = filteredClasses.slice((Math.min(classPage, classTotalPages) - 1) * limit, (Math.min(classPage, classTotalPages) - 1) * limit + limit);
+  const pagedSections = filteredSections.slice((Math.min(sectionPage, sectionTotalPages) - 1) * limit, (Math.min(sectionPage, sectionTotalPages) - 1) * limit + limit);
 
   function resetClassForm() {
     setEditingClass(null);
@@ -330,13 +349,29 @@ export default function ClassesPage() {
         <div className="card overflow-hidden">
           <div className="border-b bg-slate-50 px-5 py-4 font-black">Classes</div>
           {loading ? <div className="p-8"><Loader2 className="animate-spin" /></div> : !filteredClasses.length ? <div className="p-8 text-center text-slate-400">No classes found.</div> : (
-            <div className="overflow-x-auto"><table><thead><tr><th>Name</th><th>Code</th><th>Status</th>{showDeleted && <th>Deleted At</th>}<th className="text-right">Actions</th></tr></thead><tbody>{filteredClasses.map((c) => <tr key={itemId(c)}><td className="font-bold">{c.name}</td><td>{c.code || '—'}</td><td><StatusBadge active={c.active} /></td>{showDeleted && <td>{dateText(c.deletedAt)}</td>}<td><div className="flex justify-end gap-2"><ActionIconButton label="View class" onClick={() => setView({ type: 'class', item: c })} className="border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"><Eye size={16}/></ActionIconButton>{showDeleted ? <><ActionIconButton label="Restore class" onClick={() => restoreItem('class', c)} className="border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"><RotateCcw size={16}/></ActionIconButton><ActionIconButton label="Permanent delete" onClick={() => deleteItem('class', c)} className="border-red-200 bg-red-50 text-red-700 hover:bg-red-100"><Trash2 size={16}/></ActionIconButton></> : <><ActionIconButton label="Edit class" onClick={() => editItem('class', c)} className="border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"><Pencil size={16}/></ActionIconButton><ActionIconButton label="Remove class" onClick={() => deleteItem('class', c)} className="border-red-200 bg-red-50 text-red-700 hover:bg-red-100"><Trash2 size={16}/></ActionIconButton></>}</div></td></tr>)}</tbody></table></div>
+            <div className="overflow-x-auto"><table><thead><tr><th>Name</th><th>Code</th><th>Status</th>{showDeleted && <th>Deleted At</th>}<th className="text-right">Actions</th></tr></thead><tbody>{pagedClasses.map((c) => <tr key={itemId(c)}><td className="font-bold">{c.name}</td><td>{c.code || '—'}</td><td><StatusBadge active={c.active} /></td>{showDeleted && <td>{dateText(c.deletedAt)}</td>}<td><div className="flex justify-end gap-2"><ActionIconButton label="View class" onClick={() => setView({ type: 'class', item: c })} className="border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"><Eye size={16}/></ActionIconButton>{showDeleted ? <><ActionIconButton label="Restore class" onClick={() => restoreItem('class', c)} className="border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"><RotateCcw size={16}/></ActionIconButton><ActionIconButton label="Permanent delete" onClick={() => deleteItem('class', c)} className="border-red-200 bg-red-50 text-red-700 hover:bg-red-100"><Trash2 size={16}/></ActionIconButton></> : <><ActionIconButton label="Edit class" onClick={() => editItem('class', c)} className="border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"><Pencil size={16}/></ActionIconButton><ActionIconButton label="Remove class" onClick={() => deleteItem('class', c)} className="border-red-200 bg-red-50 text-red-700 hover:bg-red-100"><Trash2 size={16}/></ActionIconButton></>}</div></td></tr>)}</tbody></table></div>
+          )}
+          {filteredClasses.length > 0 && (
+            <PaginationBar
+              pagination={{ page: Math.min(classPage, classTotalPages), limit, total: filteredClasses.length, totalPages: classTotalPages }}
+              onPageChange={setClassPage}
+              onLimitChange={(nextLimit) => { setLimit(nextLimit); setClassPage(1); setSectionPage(1); }}
+              label="classes"
+            />
           )}
         </div>
         <div className="card overflow-hidden">
           <div className="border-b bg-slate-50 px-5 py-4 font-black">Sections</div>
           {loading ? <div className="p-8"><Loader2 className="animate-spin" /></div> : !filteredSections.length ? <div className="p-8 text-center text-slate-400">No sections found.</div> : (
-            <div className="overflow-x-auto"><table><thead><tr><th>Section</th><th>Status</th>{showDeleted && <th>Deleted At</th>}<th className="text-right">Actions</th></tr></thead><tbody>{filteredSections.map((s) => <tr key={itemId(s)}><td className="font-bold">{s.name}</td><td><StatusBadge active={s.active} /></td>{showDeleted && <td>{dateText(s.deletedAt)}</td>}<td><div className="flex justify-end gap-2"><ActionIconButton label="View section" onClick={() => setView({ type: 'section', item: s })} className="border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"><Eye size={16}/></ActionIconButton>{showDeleted ? <><ActionIconButton label="Restore section" onClick={() => restoreItem('section', s)} className="border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"><RotateCcw size={16}/></ActionIconButton><ActionIconButton label="Permanent delete" onClick={() => deleteItem('section', s)} className="border-red-200 bg-red-50 text-red-700 hover:bg-red-100"><Trash2 size={16}/></ActionIconButton></> : <><ActionIconButton label="Edit section" onClick={() => editItem('section', s)} className="border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"><Pencil size={16}/></ActionIconButton><ActionIconButton label="Remove section" onClick={() => deleteItem('section', s)} className="border-red-200 bg-red-50 text-red-700 hover:bg-red-100"><Trash2 size={16}/></ActionIconButton></>}</div></td></tr>)}</tbody></table></div>
+            <div className="overflow-x-auto"><table><thead><tr><th>Section</th><th>Status</th>{showDeleted && <th>Deleted At</th>}<th className="text-right">Actions</th></tr></thead><tbody>{pagedSections.map((s) => <tr key={itemId(s)}><td className="font-bold">{s.name}</td><td><StatusBadge active={s.active} /></td>{showDeleted && <td>{dateText(s.deletedAt)}</td>}<td><div className="flex justify-end gap-2"><ActionIconButton label="View section" onClick={() => setView({ type: 'section', item: s })} className="border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"><Eye size={16}/></ActionIconButton>{showDeleted ? <><ActionIconButton label="Restore section" onClick={() => restoreItem('section', s)} className="border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"><RotateCcw size={16}/></ActionIconButton><ActionIconButton label="Permanent delete" onClick={() => deleteItem('section', s)} className="border-red-200 bg-red-50 text-red-700 hover:bg-red-100"><Trash2 size={16}/></ActionIconButton></> : <><ActionIconButton label="Edit section" onClick={() => editItem('section', s)} className="border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"><Pencil size={16}/></ActionIconButton><ActionIconButton label="Remove section" onClick={() => deleteItem('section', s)} className="border-red-200 bg-red-50 text-red-700 hover:bg-red-100"><Trash2 size={16}/></ActionIconButton></>}</div></td></tr>)}</tbody></table></div>
+          )}
+          {filteredSections.length > 0 && (
+            <PaginationBar
+              pagination={{ page: Math.min(sectionPage, sectionTotalPages), limit, total: filteredSections.length, totalPages: sectionTotalPages }}
+              onPageChange={setSectionPage}
+              onLimitChange={(nextLimit) => { setLimit(nextLimit); setClassPage(1); setSectionPage(1); }}
+              label="sections"
+            />
           )}
         </div>
       </div>

@@ -14,27 +14,24 @@ export async function GET(req: NextRequest) {
     const actorEmail = searchParams.get('actorEmail');
     const from = searchParams.get('from');
     const to = searchParams.get('to');
+    const page = Math.max(Number(searchParams.get('page')) || 1, 1);
+    const limit = Math.min(Math.max(Number(searchParams.get('limit')) || 10, 1), 100);
+    const skip = (page - 1) * limit;
 
-    const logs = await prisma.auditLog.findMany({
-      where: {
-        ...tenantWhere(auth),
-        ...(action ? { action: { contains: action } } : {}),
-        ...(entity ? { entity: { contains: entity } } : {}),
-        ...(actorEmail ? { actorEmail: { contains: actorEmail } } : {}),
-        ...(from || to
-          ? {
-              createdAt: {
-                ...(from ? { gte: new Date(from) } : {}),
-                ...(to ? { lte: new Date(`${to}T23:59:59.999Z`) } : {}),
-              },
-            }
-          : {}),
-      },
-      orderBy: { createdAt: 'desc' },
-      take: Number(searchParams.get('limit') || 200),
-    });
+    const where = {
+      ...tenantWhere(auth),
+      ...(action ? { action: { contains: action } } : {}),
+      ...(entity ? { entity: { contains: entity } } : {}),
+      ...(actorEmail ? { actorEmail: { contains: actorEmail } } : {}),
+      ...(from || to ? { createdAt: { ...(from ? { gte: new Date(from) } : {}), ...(to ? { lte: new Date(`${to}T23:59:59.999Z`) } : {}) } } : {}),
+    };
 
-    return NextResponse.json({ logs: withMongoIds(logs) });
+    const [logs, total] = await Promise.all([
+      prisma.auditLog.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: limit }),
+      prisma.auditLog.count({ where }),
+    ]);
+
+    return NextResponse.json({ logs: withMongoIds(logs), pagination: { page, limit, total, totalPages: Math.max(Math.ceil(total / limit), 1) } });
   } catch (error) {
     console.error('Audit log list error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

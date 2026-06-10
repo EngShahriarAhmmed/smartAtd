@@ -17,9 +17,12 @@ export async function GET(req: NextRequest) {
     const studentId = searchParams.get('studentId');
     const subject = searchParams.get('subject');
     const period = searchParams.get('period');
+    const page = Math.max(Number(searchParams.get('page')) || 1, 1);
+    const limit = Math.min(Math.max(Number(searchParams.get('limit')) || 10, 1), 100);
+    const skip = (page - 1) * limit;
 
     if (date === format(new Date(), 'yyyy-MM-dd') && !studentId) {
-      const cacheKey = REDIS_KEYS.dashboardCache(`${date}-${cls || 'all'}-${section || 'all'}-${subject || 'all'}-${period || 'all'}`);
+      const cacheKey = REDIS_KEYS.dashboardCache(`${date}-${cls || 'all'}-${section || 'all'}-${subject || 'all'}-${period || 'all'}-${page}-${limit}`);
       const cached = await redis.get(cacheKey);
       if (cached) return NextResponse.json(JSON.parse(cached));
     }
@@ -34,10 +37,15 @@ export async function GET(req: NextRequest) {
       ...(period ? { period } : {}),
     };
 
-    const attendanceRecords = await prisma.attendance.findMany({
-      where,
-      orderBy: { markedAt: 'desc' },
-    });
+    const [attendanceRecords, totalRecords] = await Promise.all([
+      prisma.attendance.findMany({
+        where,
+        orderBy: { markedAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      prisma.attendance.count({ where }),
+    ]);
 
     const studentIds = Array.from(new Set(attendanceRecords.map((record) => record.studentId)));
     const students = studentIds.length
@@ -57,10 +65,10 @@ export async function GET(req: NextRequest) {
       ...(section ? { section } : {}),
     };
     const totalStudents = await prisma.student.count({ where: studentWhere });
-    const result = { records, totalStudents, date };
+    const result = { records, totalStudents, date, pagination: { page, limit, total: totalRecords, totalPages: Math.max(Math.ceil(totalRecords / limit), 1) } };
 
     if (date === format(new Date(), 'yyyy-MM-dd') && !studentId) {
-      const cacheKey = REDIS_KEYS.dashboardCache(`${date}-${cls || 'all'}-${section || 'all'}-${subject || 'all'}-${period || 'all'}`);
+      const cacheKey = REDIS_KEYS.dashboardCache(`${date}-${cls || 'all'}-${section || 'all'}-${subject || 'all'}-${period || 'all'}-${page}-${limit}`);
       await redis.setex(cacheKey, 30, JSON.stringify(result));
     }
 

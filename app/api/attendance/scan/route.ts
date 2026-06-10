@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { format } from 'date-fns';
-import { DeviceStatus, Prisma } from '@prisma/client';
+import { DeviceStatus, NotificationEvent, NotificationType, Prisma, UserRole } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { getAuthFromRequest } from '@/lib/auth';
 import { duplicateError, tenantWhere, withMongoId } from '@/lib/prisma-utils';
@@ -100,6 +100,17 @@ export async function POST(req: NextRequest) {
         entityId: pendingDevice.id,
         after: pendingDevice,
       });
+
+      await prisma.notification.create({
+        data: {
+          institutionId: auth.institutionId,
+          recipientRole: UserRole.admin,
+          type: NotificationType.push,
+          event: NotificationEvent.admin_exception_alert,
+          title: 'New scanner device pending approval',
+          message: `${requestDeviceName} is waiting for device binding approval. Device ID: ${requestDeviceId}`,
+        },
+      }).catch(() => undefined);
 
       return NextResponse.json(
         {

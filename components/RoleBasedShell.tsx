@@ -4,8 +4,10 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   BarChart3,
+  Bell,
   BellRing,
   BookOpenCheck,
+  CheckCircle2,
   ChevronDown,
   Building2,
   CalendarClock,
@@ -36,7 +38,7 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import type { UserRole } from '@/types';
 import { getRoleHome, getRoleLabel } from '@/lib/role-home';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 type MenuItem = {
   href: string;
@@ -48,6 +50,17 @@ type MenuItem = {
 type MenuSection = {
   title: string;
   items: MenuItem[];
+};
+
+type NavbarNotification = {
+  _id: string;
+  title?: string;
+  message: string;
+  event: string;
+  type: string;
+  status: string;
+  readAt?: string | null;
+  createdAt: string;
 };
 
 const ROLE_MENUS: Record<UserRole, MenuSection[]> = {
@@ -194,8 +207,13 @@ export default function RoleBasedShell({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [notificationOpen, setNotificationOpen] = useState(false);
+  const [notifications, setNotifications] = useState<NavbarNotification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [profile, setProfile] = useState<{ name?: string; email?: string; phone?: string; role?: string; active?: boolean } | null>(null);
   const profileRef = useRef<HTMLDivElement | null>(null);
+  const notificationRef = useRef<HTMLDivElement | null>(null);
 
   const menu = ROLE_MENUS[userRole] || ROLE_MENUS.admin;
   const roleLabel = getRoleLabel(userRole);
@@ -222,6 +240,54 @@ export default function RoleBasedShell({
       .then((data) => setProfile(data?.user || null))
       .catch(() => setProfile(null));
   }, [router]);
+
+
+  const loadNotifications = useCallback(async () => {
+    setNotificationsLoading(true);
+    try {
+      const res = await fetch('/api/notifications?scope=me&page=1&limit=8', { cache: 'no-store' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to load notifications');
+      setNotifications(data.notifications || []);
+      setUnreadCount(Number(data.unreadCount || 0));
+    } catch {
+      setNotifications([]);
+      setUnreadCount(0);
+    } finally {
+      setNotificationsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadNotifications();
+    const timer = window.setInterval(() => void loadNotifications(), 60000);
+    const onFocus = () => void loadNotifications();
+    window.addEventListener('focus', onFocus);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [loadNotifications]);
+
+  async function markNotificationRead(id: string, read = true) {
+    await fetch('/api/notifications', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, action: read ? 'read' : 'unread' }),
+    }).catch(() => undefined);
+    await loadNotifications();
+  }
+
+  async function markAllNotificationsRead() {
+    const ids = notifications.filter((item) => !item.readAt).map((item) => item._id);
+    if (!ids.length) return;
+    await fetch('/api/notifications', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids, action: 'read' }),
+    }).catch(() => undefined);
+    await loadNotifications();
+  }
 
   useEffect(() => {
     const originalFetch = window.fetch.bind(window);
@@ -256,6 +322,9 @@ export default function RoleBasedShell({
     function handleClickOutside(event: MouseEvent) {
       if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
         setProfileOpen(false);
+      }
+      if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
+        setNotificationOpen(false);
       }
     }
 
@@ -390,6 +459,74 @@ export default function RoleBasedShell({
                 <Home size={15} />
                 Home
               </Link>
+
+              <div className="relative" ref={notificationRef}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNotificationOpen((value) => !value);
+                    if (!notificationOpen) void loadNotifications();
+                  }}
+                  className="relative flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-50"
+                  aria-label="Open notifications"
+                >
+                  {unreadCount > 0 ? <BellRing size={18} /> : <Bell size={18} />}
+                  {unreadCount > 0 && (
+                    <span className="absolute -right-1 -top-1 flex min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-black text-white shadow">
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                  )}
+                </button>
+
+                {notificationOpen && (
+                  <div className="absolute right-0 mt-2 w-[min(24rem,calc(100vw-2rem))] overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl shadow-slate-200/80">
+                    <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
+                      <div>
+                        <div className="text-sm font-black text-slate-900">Notifications</div>
+                        <div className="text-xs font-semibold text-slate-500">{unreadCount} unread notification(s)</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={markAllNotificationsRead}
+                        disabled={!unreadCount}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <CheckCircle2 size={14} />
+                        Read all
+                      </button>
+                    </div>
+
+                    <div className="max-h-[420px] overflow-y-auto p-2">
+                      {notificationsLoading ? (
+                        <div className="p-6 text-center text-sm font-semibold text-slate-500">Loading...</div>
+                      ) : notifications.length === 0 ? (
+                        <div className="p-6 text-center text-sm font-semibold text-slate-500">No notification found.</div>
+                      ) : (
+                        <div className="space-y-2">
+                          {notifications.map((item) => (
+                            <div key={item._id} className={`rounded-2xl border p-3 ${item.readAt ? 'border-slate-200 bg-white' : 'border-blue-200 bg-blue-50'}`}>
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="truncate text-sm font-black text-slate-900">{item.title || item.event}</div>
+                                  <div className="mt-1 line-clamp-2 text-xs leading-5 text-slate-600">{item.message}</div>
+                                  <div className="mt-2 text-[11px] font-semibold text-slate-400">{item.createdAt ? new Date(item.createdAt).toLocaleString() : ''}</div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => markNotificationRead(item._id, !item.readAt)}
+                                  className="shrink-0 rounded-xl border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-50"
+                                >
+                                  {item.readAt ? 'Unread' : 'Read'}
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
 
               <div className="relative" ref={profileRef}>
                 <button

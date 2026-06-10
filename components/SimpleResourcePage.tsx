@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Eye, Loader2, Pencil, Plus, RefreshCw, RotateCcw, Save, Search, Trash2, X } from 'lucide-react';
+import PaginationBar from '@/components/PaginationBar';
+import { useToast } from '@/components/ToastProvider';
 
 type Field = {
   name: string;
@@ -98,6 +100,9 @@ export default function SimpleResourcePage({
   const [query, setQuery] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [showDeleted, setShowDeleted] = useState(false);
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const toast = useToast();
 
   const visibleFields = fields.filter((field) => !(editing && field.hideInEdit));
 
@@ -108,6 +113,13 @@ export default function SimpleResourcePage({
       columns.some((column) => String(item[column.key] || '').toLowerCase().includes(needle))
     );
   }, [columns, items, query]);
+
+  const totalPages = Math.max(Math.ceil(filteredItems.length / limit), 1);
+  const pagedItems = useMemo(() => {
+    const safePage = Math.min(page, totalPages);
+    const start = (safePage - 1) * limit;
+    return filteredItems.slice(start, start + limit);
+  }, [filteredItems, limit, page, totalPages]);
 
   async function loadItems() {
     setLoading(true);
@@ -135,6 +147,20 @@ export default function SimpleResourcePage({
     loadItems();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [endpoint, showDeleted]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [query, showDeleted]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+
+  useEffect(() => {
+    if (!message) return;
+    if (message.ok) toast.success(message.text);
+    else toast.error(message.text);
+  }, [message, toast]);
 
   function resetForm() {
     setForm({});
@@ -378,7 +404,7 @@ export default function SimpleResourcePage({
                 </tr>
               </thead>
               <tbody>
-                {filteredItems.map((item) => (
+                {pagedItems.map((item) => (
                   <tr key={recordId(item)}>
                     {columns.map((column) => <td key={column.key}>{column.render ? column.render(item) : valueFor(item, column.key)}</td>)}
                     {showDeleted && <td>{valueFor(item, 'deletedAt')}</td>}
@@ -405,6 +431,15 @@ export default function SimpleResourcePage({
           </div>
         )}
       </div>
+
+      {filteredItems.length > 0 && (
+        <PaginationBar
+          pagination={{ page: Math.min(page, totalPages), limit, total: filteredItems.length, totalPages }}
+          onPageChange={setPage}
+          onLimitChange={(nextLimit) => { setLimit(nextLimit); setPage(1); }}
+          label="records"
+        />
+      )}
 
       {viewing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm">

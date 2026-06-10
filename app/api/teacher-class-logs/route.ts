@@ -16,22 +16,26 @@ export async function GET(req: NextRequest) {
     const section = searchParams.get('section');
     const subject = searchParams.get('subject');
     const period = searchParams.get('period');
+    const page = Math.max(Number(searchParams.get('page')) || 1, 1);
+    const limit = Math.min(Math.max(Number(searchParams.get('limit')) || 10, 1), 100);
+    const skip = (page - 1) * limit;
 
-    const logs = await prisma.teacherClassLog.findMany({
-      where: {
-        ...tenantWhere(auth),
-        ...(auth.role === 'teacher' ? { teacherEmail: auth.email } : teacherEmail ? { teacherEmail } : {}),
-        ...(date ? { date } : {}),
-        ...(cls ? { class: cls } : {}),
-        ...(section ? { section } : {}),
-        ...(subject ? { subject } : {}),
-        ...(period ? { period } : {}),
-      },
-      orderBy: [{ date: 'desc' }, { startTime: 'desc' }],
-      take: Number(searchParams.get('limit') || 200),
-    });
+    const where = {
+      ...tenantWhere(auth),
+      ...(auth.role === 'teacher' ? { teacherEmail: auth.email } : teacherEmail ? { teacherEmail } : {}),
+      ...(date ? { date } : {}),
+      ...(cls ? { class: cls } : {}),
+      ...(section ? { section } : {}),
+      ...(subject ? { subject } : {}),
+      ...(period ? { period } : {}),
+    };
 
-    return NextResponse.json({ logs: withMongoIds(logs) });
+    const [logs, total] = await Promise.all([
+      prisma.teacherClassLog.findMany({ where, orderBy: [{ date: 'desc' }, { startTime: 'desc' }], skip, take: limit }),
+      prisma.teacherClassLog.count({ where }),
+    ]);
+
+    return NextResponse.json({ logs: withMongoIds(logs), pagination: { page, limit, total, totalPages: Math.max(Math.ceil(total / limit), 1) } });
   } catch (error) {
     console.error('Teacher class log list error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -48,24 +52,48 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Class, section and date are required' }, { status: 400 });
     }
 
-    const log = await prisma.teacherClassLog.create({
-      data: {
-        institutionId: auth.institutionId,
-        teacherEmail: body.teacherEmail || auth.email,
-        teacherId: body.teacherId,
+    const teacherEmail = body.teacherEmail || auth.email;
+    const subject = body.subject || '';
+    const period = body.period || '';
+
+    const existing = await prisma.teacherClassLog.findFirst({
+      where: {
+        ...tenantWhere(auth),
+        teacherEmail,
         class: body.class,
         section: body.section,
-        subject: body.subject || '',
-        period: body.period || '',
+        subject,
+        period,
         date: body.date,
-        startTime: body.startTime ? new Date(body.startTime) : new Date(),
-        endTime: body.endTime ? new Date(body.endTime) : undefined,
-        scanCount: Number(body.scanCount || 0),
       },
     });
 
-    await createAuditLog({ req, auth, action: 'teacherClassLog.create', entity: 'TeacherClassLog', entityId: log.id, after: log });
-    return NextResponse.json({ log: { ...log, _id: log.id } });
+    const log = existing
+      ? await prisma.teacherClassLog.update({
+          where: { id: existing.id },
+          data: {
+            endTime: body.endTime ? new Date(body.endTime) : existing.endTime,
+            scanCount: body.scanCount !== undefined ? Number(body.scanCount) : existing.scanCount,
+          },
+        })
+      : await prisma.teacherClassLog.create({
+          data: {
+            institutionId: auth.institutionId,
+            teacherEmail,
+            teacherId: body.teacherId,
+            class: body.class,
+            section: body.section,
+            subject,
+            period,
+            date: body.date,
+            startTime: body.startTime ? new Date(body.startTime) : new Date(),
+            endTime: body.endTime ? new Date(body.endTime) : undefined,
+            scanCount: Number(body.scanCount || 0),
+          },
+        });
+
+    await createAuditLog({ req, auth, action: existing ? 'teacherClassLog.updateExisting' : 'teacherClassLog.create', entity: 'TeacherClassLog', entityId: log.id, after: log });
+    return NextResponse.json({ log: { ...log, _id: log.id }, existing: !!existing });
   } catch (error) {
     console.error('Teacher class log create error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

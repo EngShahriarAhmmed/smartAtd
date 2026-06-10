@@ -396,6 +396,8 @@ model Notification {
   message        String
   status         NotificationStatus @default(pending)
   sentAt         DateTime?
+  readAt         DateTime?
+  readBy         String?            @db.ObjectId
   error          String?
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
@@ -405,6 +407,8 @@ model Notification {
   @@index([institutionId, status, createdAt])
   @@index([studentId, createdAt])
   @@index([recipientUserId, createdAt])
+  @@index([recipientRole, readAt, createdAt])
+  @@index([recipientEmail, readAt, createdAt])
   @@map("notifications")
 }
 

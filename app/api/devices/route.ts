@@ -27,17 +27,25 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const status = normalizeStatus(searchParams.get('status'));
+    const page = Math.max(Number(searchParams.get('page')) || 1, 1);
+    const limit = Math.min(Math.max(Number(searchParams.get('limit')) || 10, 1), 100);
+    const skip = (page - 1) * limit;
+    const where = {
+      ...tenantWhere(auth),
+      ...(status ? { status } : {}),
+    };
 
-    const devices = await prisma.deviceBinding.findMany({
-      where: {
-        ...tenantWhere(auth),
-        ...(status ? { status } : {}),
-      },
-      orderBy: { updatedAt: 'desc' },
-      take: Math.min(Number(searchParams.get('limit') || 100), 500),
-    });
+    const [devices, total] = await Promise.all([
+      prisma.deviceBinding.findMany({
+        where,
+        orderBy: { updatedAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      prisma.deviceBinding.count({ where }),
+    ]);
 
-    return NextResponse.json({ devices: withMongoIds(devices) });
+    return NextResponse.json({ devices: withMongoIds(devices), pagination: { page, limit, total, totalPages: Math.max(Math.ceil(total / limit), 1) } });
   } catch (error) {
     console.error('Device list error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
