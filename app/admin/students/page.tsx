@@ -323,8 +323,8 @@ export default function StudentsPage() {
   const [classOptions, setClassOptions] = useState<string[]>([]);
   const [sectionOptions, setSectionOptions] = useState<string[]>([]);
 
-  const classes = classOptions.length ? classOptions : ['6', '7', '8', '9', '10', '11', '12'];
-  const sections = sectionOptions.length ? sectionOptions : ['A', 'B', 'C', 'D'];
+  const classes = classOptions;
+  const sections = sectionOptions;
   const pageSizeOptions = [10, 25, 50, 100];
 
   useEffect(() => {
@@ -341,26 +341,19 @@ export default function StudentsPage() {
   useEffect(() => {
     async function loadMasterData() {
       try {
-        const [classRes, sectionRes] = await Promise.all([
-          fetch('/api/admin/classes', { cache: 'no-store' }),
-          fetch('/api/admin/sections', { cache: 'no-store' }),
-        ]);
-        const classData = await classRes.json();
-        const sectionData = await sectionRes.json();
+        const res = await fetch('/api/master-options', { cache: 'no-store' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to load master options');
 
-        if (classRes.ok) {
-          const names = (classData.items || [])
-            .map((item: { name?: string }) => item.name)
-            .filter((name: string | undefined): name is string => Boolean(name));
-          setClassOptions(names);
-        }
+        const classNames = (data.classes || [])
+          .map((item: { name?: string }) => item.name)
+          .filter((name: string | undefined): name is string => Boolean(name));
+        const sectionNames = (data.sections || [])
+          .map((item: { name?: string }) => item.name)
+          .filter((name: string | undefined): name is string => Boolean(name));
 
-        if (sectionRes.ok) {
-          const names = (sectionData.items || [])
-            .map((item: { name?: string }) => item.name)
-            .filter((name: string | undefined): name is string => Boolean(name));
-          setSectionOptions(names);
-        }
+        setClassOptions(classNames);
+        setSectionOptions(sectionNames);
       } catch {
         setClassOptions([]);
         setSectionOptions([]);

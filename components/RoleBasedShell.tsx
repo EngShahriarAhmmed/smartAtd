@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   BarChart3,
+  BellRing,
+  BookOpenCheck,
   ChevronDown,
   Building2,
   CalendarClock,
@@ -12,12 +14,14 @@ import {
   FileBarChart,
   GraduationCap,
   Home,
+  History,
   IdCard,
   Landmark,
   LayoutDashboard,
   LogOut,
   Menu,
   MessageSquareWarning,
+  MonitorSmartphone,
   QrCode,
   ScanLine,
   Settings,
@@ -84,13 +88,20 @@ const ROLE_MENUS: Record<UserRole, MenuSection[]> = {
         { href: '/admin/qr', label: 'Student QR Cards', icon: QrCode },
         { href: '/admin/attendance', label: 'Attendance Records', icon: ClipboardCheck },
         { href: '/admin/sessions', label: 'Class Sessions', icon: CalendarClock },
-        { href: '/admin/reports', label: 'Reports', icon: FileBarChart },
+        { href: '/admin/reports', label: 'Reports & Exports', icon: FileBarChart },
+        { href: '/admin/teacher-class-logs', label: 'Teacher Class Logs', icon: BookOpenCheck },
+        { href: '/admin/notifications', label: 'Notifications', icon: BellRing },
         { href: '/admin/corrections', label: 'Corrections', icon: ShieldCheck },
       ],
     },
     {
       title: 'System',
-      items: [{ href: '/admin/settings', label: 'Institution Settings', icon: Settings }, { href: '/account', label: 'My Account', icon: UserCircle }],
+      items: [
+        { href: '/admin/devices', label: 'Device Binding', icon: MonitorSmartphone },
+        { href: '/admin/audit-logs', label: 'Audit Logs', icon: History },
+        { href: '/admin/settings', label: 'Institution Settings', icon: Settings },
+        { href: '/account', label: 'My Account', icon: UserCircle },
+      ],
     },
   ],
   admin: [
@@ -105,12 +116,19 @@ const ROLE_MENUS: Record<UserRole, MenuSection[]> = {
         { href: '/admin/periods', label: 'Periods', icon: CalendarClock },
         { href: '/admin/qr', label: 'Student QR Cards', icon: QrCode },
         { href: '/admin/attendance', label: 'Attendance Records', icon: ClipboardCheck },
-        { href: '/admin/reports', label: 'Reports', icon: FileBarChart },
+        { href: '/admin/reports', label: 'Reports & Exports', icon: FileBarChart },
+        { href: '/admin/teacher-class-logs', label: 'Teacher Class Logs', icon: BookOpenCheck },
+        { href: '/admin/notifications', label: 'Notifications', icon: BellRing },
       ],
     },
     {
       title: 'System',
-      items: [{ href: '/admin/settings', label: 'Institution Settings', icon: Settings }, { href: '/account', label: 'My Account', icon: UserCircle }],
+      items: [
+        { href: '/admin/devices', label: 'Device Binding', icon: MonitorSmartphone },
+        { href: '/admin/audit-logs', label: 'Audit Logs', icon: History },
+        { href: '/admin/settings', label: 'Institution Settings', icon: Settings },
+        { href: '/account', label: 'My Account', icon: UserCircle },
+      ],
     },
   ],
   teacher: [
@@ -122,6 +140,7 @@ const ROLE_MENUS: Record<UserRole, MenuSection[]> = {
         { href: '/teacher/classes', label: 'My Classes', icon: GraduationCap },
         { href: '/teacher/attendance', label: 'Attendance History', icon: ClipboardList },
         { href: '/teacher/reports', label: 'Subject Reports', icon: FileBarChart },
+        { href: '/teacher/class-logs', label: 'Class Logs', icon: BookOpenCheck },
         { href: '/account', label: 'My Account', icon: UserCircle },
       ],
     },
@@ -284,6 +303,17 @@ export default function RoleBasedShell({
           >
             <X size={18} />
           </button>
+        </div>
+
+        <div className="border-b border-slate-200 px-5 py-4">
+          <div className="rounded-3xl border border-blue-100 bg-gradient-to-br from-blue-50 to-emerald-50 p-4">
+            <div className="mb-2 inline-flex rounded-full bg-white px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-blue-700 shadow-sm">
+              {roleLabel}
+            </div>
+            <div className="truncate text-sm font-bold text-slate-900">{profile?.name || userEmail}</div>
+            <div className="truncate text-xs font-semibold text-slate-500">{profile?.email || userEmail}</div>
+            <div className="mt-1 truncate text-xs text-slate-500">{institutionName || 'Institution Workspace'}</div>
+          </div>
         </div>
 
         <nav className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-5">

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { format } from 'date-fns';
 import { requireAuth, ROLE_GROUPS } from '@/lib/rbac';
-import { getMonthlyAttendanceReport } from '@/lib/advanced-reports';
+import { getDailyPeriodWiseReport } from '@/lib/advanced-reports';
 
 export async function GET(req: NextRequest) {
   try {
@@ -9,19 +9,17 @@ export async function GET(req: NextRequest) {
     if (response) return response;
 
     const { searchParams } = new URL(req.url);
-    const threshold = Number(searchParams.get('threshold') || process.env.NON_COLLEGIATE_THRESHOLD || 75);
-    const report = await getMonthlyAttendanceReport(auth, {
-      month: searchParams.get('month') || format(new Date(), 'yyyy-MM'),
+    const report = await getDailyPeriodWiseReport(auth, {
+      date: searchParams.get('date') || format(new Date(), 'yyyy-MM-dd'),
       class: searchParams.get('class') || undefined,
       section: searchParams.get('section') || undefined,
       subject: searchParams.get('subject') || undefined,
       period: searchParams.get('period') || undefined,
-      threshold,
     });
 
-    return NextResponse.json({ threshold, students: report.rows.filter((item) => item.nonCollegiate), all: report.rows, totals: report.totals });
+    return NextResponse.json(report);
   } catch (error) {
-    console.error('Non collegiate report error:', error);
+    console.error('Daily period-wise report error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

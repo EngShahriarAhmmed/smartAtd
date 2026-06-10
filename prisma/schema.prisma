@@ -52,6 +52,10 @@ enum NotificationEvent {
   low_attendance
   non_collegiate_risk
   attendance_correction
+  guardian_alert
+  student_warning
+  class_teacher_notification
+  admin_exception_alert
 }
 
 enum NotificationStatus {
@@ -64,6 +68,14 @@ enum CorrectionStatus {
   pending
   approved
   rejected
+}
+
+
+enum DeviceStatus {
+  pending
+  active
+  blocked
+  revoked
 }
 
 model Institution {
@@ -367,25 +379,60 @@ model AuditLog {
   @@map("audit_logs")
 }
 model Notification {
-  id            String             @id @default(auto()) @map("_id") @db.ObjectId
-  institutionId String?            @db.ObjectId
-  studentId     String?            @db.ObjectId
-  guardianPhone String?
-  guardianEmail String?
-  type          NotificationType
-  event         NotificationEvent
-  message       String
-  status        NotificationStatus @default(pending)
-  sentAt        DateTime?
-  error         String?
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
+  id             String             @id @default(auto()) @map("_id") @db.ObjectId
+  institutionId  String?            @db.ObjectId
+  studentId      String?            @db.ObjectId
+  teacherId      String?            @db.ObjectId
+  recipientUserId String?           @db.ObjectId
+  recipientRole  UserRole?
+  recipientName  String?
+  recipientEmail String?
+  recipientPhone String?
+  guardianPhone  String?
+  guardianEmail  String?
+  type           NotificationType
+  event          NotificationEvent
+  title          String?
+  message        String
+  status         NotificationStatus @default(pending)
+  sentAt         DateTime?
+  error          String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
 
   deletedAt DateTime?
   deletedBy String?   @db.ObjectId
   @@index([institutionId, status, createdAt])
+  @@index([studentId, createdAt])
+  @@index([recipientUserId, createdAt])
   @@map("notifications")
 }
+
+model DeviceBinding {
+  id            String       @id @default(auto()) @map("_id") @db.ObjectId
+  institutionId String?      @db.ObjectId
+  userId        String?      @db.ObjectId
+  teacherId     String?      @db.ObjectId
+  deviceName    String
+  deviceId      String
+  deviceHash    String?
+  role          UserRole?
+  status        DeviceStatus @default(pending)
+  lastUsedAt    DateTime?
+  approvedBy    String?      @db.ObjectId
+  approvedAt    DateTime?
+  notes         String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  deletedAt DateTime?
+  deletedBy String?   @db.ObjectId
+  @@unique([institutionId, deviceId])
+  @@index([institutionId, status])
+  @@index([userId, status])
+  @@map("device_bindings")
+}
+
 model AttendanceCorrection {
   id              String           @id @default(auto()) @map("_id") @db.ObjectId
   institutionId   String?          @db.ObjectId

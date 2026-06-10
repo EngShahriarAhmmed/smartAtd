@@ -22,6 +22,8 @@ interface AttendanceRecord {
   status: 'present' | 'absent' | 'late';
   markedAt: string;
   date: string;
+  subject?: string;
+  period?: string;
   studentId: {
     _id: string;
     name: string;
@@ -51,6 +53,30 @@ interface ToastState {
   message: string;
   details?: string;
 }
+
+interface MasterOption {
+  _id?: string;
+  id?: string;
+  name?: string;
+  code?: string;
+  periodName?: string;
+  startTime?: string;
+  endTime?: string;
+}
+
+interface MasterOptions {
+  classes: MasterOption[];
+  sections: MasterOption[];
+  subjects: MasterOption[];
+  periods: MasterOption[];
+}
+
+const emptyMasterOptions: MasterOptions = {
+  classes: [],
+  sections: [],
+  subjects: [],
+  periods: [],
+};
 
 const scannerRegionId = 'qr-reader';
 
@@ -166,6 +192,7 @@ function StatCard({
 export default function AttendancePage() {
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [totalStudents, setTotalStudents] = useState(0);
+  const [options, setOptions] = useState<MasterOptions>(emptyMasterOptions);
 
   const [loading, setLoading] = useState(true);
 
@@ -181,6 +208,8 @@ export default function AttendancePage() {
   const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [filterClass, setFilterClass] = useState('');
   const [filterSection, setFilterSection] = useState('');
+  const [filterSubject, setFilterSubject] = useState('');
+  const [filterPeriod, setFilterPeriod] = useState('');
 
   const [toast, setToast] = useState<ToastState | null>(null);
 
@@ -193,8 +222,25 @@ export default function AttendancePage() {
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const scanLockedRef = useRef(false);
 
-  const classes = ['6', '7', '8', '9', '10', '11', '12'];
-  const sections = ['A', 'B', 'C', 'D'];
+  useEffect(() => {
+    async function loadOptions() {
+      try {
+        const res = await fetch('/api/master-options', { cache: 'no-store' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to load options');
+        setOptions({
+          classes: data.classes || [],
+          sections: data.sections || [],
+          subjects: data.subjects || [],
+          periods: data.periods || [],
+        });
+      } catch {
+        setOptions(emptyMasterOptions);
+      }
+    }
+
+    void loadOptions();
+  }, []);
 
   useEffect(() => {
     if (!toast) return;
@@ -221,6 +267,8 @@ export default function AttendancePage() {
 
       if (filterClass) params.set('class', filterClass);
       if (filterSection) params.set('section', filterSection);
+      if (filterSubject) params.set('subject', filterSubject);
+      if (filterPeriod) params.set('period', filterPeriod);
 
       const res = await fetch(`/api/attendance/records?${params}`);
       const data = await res.json();
@@ -241,7 +289,7 @@ export default function AttendancePage() {
     } finally {
       setLoading(false);
     }
-  }, [date, filterClass, filterSection, showToast]);
+  }, [date, filterClass, filterSection, filterSubject, filterPeriod, showToast]);
 
   useEffect(() => {
     fetchRecords();
@@ -437,6 +485,24 @@ export default function AttendancePage() {
     }
   }
 
+  function getScannerDeviceId() {
+    const key = 'smart_atd_scanner_device_id';
+    let id = window.localStorage.getItem(key);
+
+    if (!id) {
+      id = window.crypto?.randomUUID?.() || `scanner-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      window.localStorage.setItem(key, id);
+    }
+
+    return id;
+  }
+
+  function getScannerDeviceName() {
+    const platform = window.navigator.platform || 'Unknown device';
+    const userAgent = window.navigator.userAgent || 'Unknown browser';
+    return `${platform} - ${userAgent.slice(0, 90)}`;
+  }
+
   async function submitScan(decodedText: string) {
     if (scanLockedRef.current) return;
 
@@ -445,12 +511,20 @@ export default function AttendancePage() {
     setResult(null);
 
     const parsed = parseQrPayload(decodedText);
+    const deviceId = getScannerDeviceId();
+    const deviceName = getScannerDeviceName();
 
     try {
       const res = await fetch('/api/attendance/scan', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-device-id': deviceId,
+          'x-device-name': deviceName,
+        },
         body: JSON.stringify({
+          deviceId,
+          deviceName,
           qrData: decodedText,
           qrPayload: decodedText,
           qrToken: parsed.qrToken || decodedText,
@@ -458,6 +532,8 @@ export default function AttendancePage() {
           date,
           class: filterClass || parsed.class,
           section: filterSection || parsed.section,
+          subject: filterSubject,
+          period: filterPeriod,
           status: 'present',
         }),
       });
@@ -593,9 +669,9 @@ export default function AttendancePage() {
             >
               <option value="">All Classes</option>
 
-              {classes.map((item) => (
-                <option key={item} value={item}>
-                  Class {item}
+              {options.classes.map((item) => (
+                <option key={item._id || item.id || item.name} value={item.name || ''}>
+                  {item.name}
                 </option>
               ))}
             </select>
@@ -607,9 +683,36 @@ export default function AttendancePage() {
             >
               <option value="">All Sections</option>
 
-              {sections.map((item) => (
-                <option key={item} value={item}>
-                  Section {item}
+              {options.sections.map((item) => (
+                <option key={item._id || item.id || item.name} value={item.name || ''}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+
+
+            <select
+              className="input w-full sm:max-w-[190px]"
+              value={filterSubject}
+              onChange={(event) => setFilterSubject(event.target.value)}
+            >
+              <option value="">All Subjects</option>
+              {options.subjects.map((item) => (
+                <option key={item._id || item.id || item.code || item.name} value={item.name || ''}>
+                  {item.name}{item.code ? ` (${item.code})` : ''}
+                </option>
+              ))}
+            </select>
+
+            <select
+              className="input w-full sm:max-w-[190px]"
+              value={filterPeriod}
+              onChange={(event) => setFilterPeriod(event.target.value)}
+            >
+              <option value="">All Periods</option>
+              {options.periods.map((item) => (
+                <option key={item._id || item.id || item.periodName} value={item.periodName || ''}>
+                  {item.periodName}{item.startTime && item.endTime ? ` (${item.startTime}-${item.endTime})` : ''}
                 </option>
               ))}
             </select>
@@ -716,6 +819,8 @@ export default function AttendancePage() {
                 <div className="mt-1 text-sm font-semibold text-slate-900">
                   {filterClass || 'All Classes'}{' '}
                   {filterSection ? `- ${filterSection}` : ''}
+                  {filterSubject ? ` | ${filterSubject}` : ''}
+                  {filterPeriod ? ` | ${filterPeriod}` : ''}
                 </div>
               </div>
 
@@ -820,6 +925,8 @@ export default function AttendancePage() {
                   <th>Student</th>
                   <th>ID</th>
                   <th>Class</th>
+                  <th>Subject</th>
+                  <th>Period</th>
                   <th>Status</th>
                   <th>Marked At</th>
                 </tr>
@@ -841,6 +948,10 @@ export default function AttendancePage() {
                     <td>
                       {record.studentId?.class}-{record.studentId?.section}
                     </td>
+
+                    <td>{record.subject || 'General'}</td>
+
+                    <td>{record.period || 'General'}</td>
 
                     <td>
                       <span

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { format } from 'date-fns';
-import { Prisma } from '@prisma/client';
+import { DeviceStatus, Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { getAuthFromRequest } from '@/lib/auth';
 import { duplicateError, tenantWhere, withMongoId } from '@/lib/prisma-utils';
@@ -48,6 +48,90 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
+
+    const requestDeviceId = String(
+      body.deviceId ||
+        req.headers.get('x-device-id') ||
+        ''
+    ).trim();
+
+    const requestDeviceName = String(
+      body.deviceName ||
+        req.headers.get('x-device-name') ||
+        'Auto detected scanner device'
+    ).trim();
+
+    if (!requestDeviceId) {
+      return NextResponse.json(
+        {
+          error:
+            'Scanner device is not registered. Please contact the administration for device binding approval.',
+          code: 'DEVICE_ID_REQUIRED',
+        },
+        { status: 403 }
+      );
+    }
+
+    const device = await prisma.deviceBinding.findFirst({
+      where: { ...tenantWhere(auth), deviceId: requestDeviceId },
+    });
+
+    if (!device) {
+      const pendingDevice = await prisma.deviceBinding.create({
+        data: {
+          institutionId: auth.institutionId,
+          userId: auth.userId,
+          deviceName: requestDeviceName,
+          deviceId: requestDeviceId,
+          deviceHash: body.deviceHash,
+          role: auth.role,
+          status: DeviceStatus.pending,
+          lastUsedAt: new Date(),
+          notes:
+            'Auto-created from scanner use. Admin must approve this device before attendance actions are allowed.',
+        },
+      });
+
+      await createAuditLog({
+        req,
+        auth,
+        action: 'device.pendingFromScan',
+        entity: 'DeviceBinding',
+        entityId: pendingDevice.id,
+        after: pendingDevice,
+      });
+
+      return NextResponse.json(
+        {
+          error:
+            'This scanner device is pending approval. Please contact the administration to approve this device before scanning attendance.',
+          code: 'DEVICE_PENDING_APPROVAL',
+        },
+        { status: 403 }
+      );
+    }
+
+    if (device.status !== DeviceStatus.active) {
+      const message =
+        device.status === DeviceStatus.pending
+          ? 'This scanner device is pending approval. Please contact the administration.'
+          : 'This scanner device is blocked or revoked. Please contact the administration.';
+
+      return NextResponse.json(
+        { error: message, code: `DEVICE_${device.status.toUpperCase()}` },
+        { status: 403 }
+      );
+    }
+
+    await prisma.deviceBinding.update({
+      where: { id: device.id },
+      data: {
+        lastUsedAt: new Date(),
+        userId: device.userId || auth.userId,
+        role: device.role || auth.role,
+        deviceName: requestDeviceName || device.deviceName,
+      },
+    });
 
     const rawQr = String(
       body.qrData || body.qrPayload || body.qrToken || body.token || ''
@@ -204,7 +288,7 @@ export async function POST(req: NextRequest) {
         markedBy: auth.email,
         latitude: body.latitude,
         longitude: body.longitude,
-        deviceId: body.deviceId || req.headers.get('user-agent') || undefined,
+        deviceId: requestDeviceId || undefined,
         ipAddress:
           req.headers.get('x-forwarded-for') ||
           req.headers.get('x-real-ip') ||
