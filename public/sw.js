@@ -1,5 +1,24 @@
-const CACHE_NAME = 'smart-qr-attendance-v1';
-const STATIC_CACHE_URLS = ['/', '/login', '/offline', '/icons/icon-192.png', '/icons/icon-512.png'];
+const CACHE_NAME = 'smart-qr-attendance-v4';
+const STATIC_CACHE_URLS = [
+  '/',
+  '/login',
+  '/offline',
+  '/brand/login-banner.webp',
+  '/brand/login-banner-sm.webp',
+  '/brand/logo.png',
+  '/brand/logo-mark.png',
+  '/brand/logo-mark-sm.png',
+  '/brand/logo-full.png',
+  '/brand/logo-full-sm.png',
+  '/brand/logo-full-solid.webp',
+  '/brand/logo-icon-solid.webp',
+  '/icon.png',
+  '/apple-icon.png',
+  '/favicon.ico',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
+  '/icons/maskable-512.png',
+];
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();

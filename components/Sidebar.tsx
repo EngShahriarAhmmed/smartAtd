@@ -1,4 +1,5 @@
 'use client';
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 
@@ -27,10 +28,12 @@ export default function Sidebar({ userEmail, userRole }: { userEmail: string; us
       {/* Logo */}
       <div style={{ marginBottom: '2rem', padding: '0 0.5rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <span style={{ fontSize: 24 }}>📋</span>
+          <div style={{ width: 42, height: 42, borderRadius: 14, background: 'white', padding: 4, boxShadow: '0 10px 25px rgba(0,0,0,0.18)' }}>
+            <Image src="/brand/logo-mark.png" alt="Smart QR Attendance logo" width={42} height={42} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'scale-down' }} />
+          </div>
           <div>
-            <div style={{ color: 'white', fontWeight: 700, fontSize: '1rem', lineHeight: 1.2 }}>QR Attendance</div>
-            <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.7rem' }}>School System</div>
+            <div style={{ color: 'white', fontWeight: 700, fontSize: '1rem', lineHeight: 1.2 }}>Smart QR</div>
+            <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.7rem' }}>Attendance System</div>
           </div>
         </div>
       </div>

@@ -12,7 +12,6 @@ import {
   X,
   RefreshCw,
   Loader2,
-  CalendarDays,
   Users,
   Clock,
   ClipboardList,
@@ -201,7 +200,6 @@ export default function AttendancePage() {
 
   const [enabled, setEnabled] = useState(false);
   const [scannerOpening, setScannerOpening] = useState(false);
-  const [scannerRunning, setScannerRunning] = useState(false);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{
     ok: boolean;
@@ -434,7 +432,6 @@ export default function AttendancePage() {
         }
       );
 
-      setScannerRunning(true);
 
       setResult({
         ok: true,
@@ -461,7 +458,6 @@ export default function AttendancePage() {
       );
 
       setEnabled(false);
-      setScannerRunning(false);
     } finally {
       setScannerOpening(false);
     }
@@ -485,7 +481,6 @@ export default function AttendancePage() {
       console.error(error);
       scannerRef.current = null;
     } finally {
-      setScannerRunning(false);
     }
   }
 
@@ -639,7 +634,7 @@ export default function AttendancePage() {
 
         <button
           type="button"
-          onClick={fetchRecords}
+          onClick={() => fetchRecords()}
           disabled={loading}
           className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-blue-100 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
         >

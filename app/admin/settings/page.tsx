@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Building2,
   CheckCircle2,
@@ -143,10 +143,6 @@ export default function AdminSettingsPage() {
   const [toast, setToast] = useState<ToastState | null>(null);
 
   useEffect(() => {
-    fetchSettings();
-  }, []);
-
-  useEffect(() => {
     if (!toast) return;
 
     const timer = window.setTimeout(() => {
@@ -156,11 +152,11 @@ export default function AdminSettingsPage() {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  function showToast(type: ToastType, message: string, details?: string) {
+  const showToast = useCallback((type: ToastType, message: string, details?: string) => {
     setToast({ type, message, details });
-  }
+  }, []);
 
-  async function fetchSettings() {
+  const fetchSettings = useCallback(async () => {
     setLoading(true);
 
     try {
@@ -191,7 +187,11 @@ export default function AdminSettingsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [showToast]);
+
+  useEffect(() => {
+    void fetchSettings();
+  }, [fetchSettings]);
 
   async function saveSettings(event: React.FormEvent) {
     event.preventDefault();

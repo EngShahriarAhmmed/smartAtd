@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Eye, Loader2, Pencil, Plus, RefreshCw, RotateCcw, Search, Trash2, X } from 'lucide-react';
 import PaginationBar from '@/components/PaginationBar';
 import { useToast } from '@/components/ToastProvider';
@@ -116,7 +116,7 @@ export default function ClassesPage() {
   const [limit, setLimit] = useState(10);
   const toast = useToast();
 
-  async function loadData() {
+  const loadData = useCallback(async () => {
     setLoading(true);
     setMessage(null);
     try {
@@ -138,9 +138,9 @@ export default function ClassesPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [showDeleted]);
 
-  useEffect(() => { loadData(); }, [showDeleted]);
+  useEffect(() => { void loadData(); }, [loadData]);
 
   useEffect(() => {
     if (!message) return;

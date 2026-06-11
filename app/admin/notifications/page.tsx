@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { format } from 'date-fns';
-import { BellRing, CheckCircle2, Loader2, MailOpen, RefreshCw, Send } from 'lucide-react';
+import { BellRing, Loader2, MailOpen, RefreshCw, Send } from 'lucide-react';
 import PaginationBar, { type PaginationState } from '@/components/PaginationBar';
 import { useToast } from '@/components/ToastProvider';
 

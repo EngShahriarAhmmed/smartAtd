@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
@@ -355,8 +356,15 @@ export default function RoleBasedShell({
       >
         <div className="flex h-20 items-center justify-between border-b border-slate-200 px-5">
           <Link href={home} className="flex items-center gap-3" onClick={() => setOpen(false)}>
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-emerald-500 text-white shadow-lg shadow-blue-500/20">
-              <QrCode size={23} />
+            <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-white p-1 shadow-lg shadow-blue-500/10 ring-1 ring-slate-200">
+              <Image
+                src="/brand/logo-mark.png"
+                alt="Smart QR Attendance logo"
+                width={48}
+                height={48}
+                className="max-h-full max-w-full object-scale-down"
+                priority
+              />
             </div>
             <div>
               <div className="text-sm font-black leading-tight text-slate-950">Smart QR</div>
@@ -374,16 +382,6 @@ export default function RoleBasedShell({
           </button>
         </div>
 
-        <div className="border-b border-slate-200 px-5 py-4">
-          <div className="rounded-3xl border border-blue-100 bg-gradient-to-br from-blue-50 to-emerald-50 p-4">
-            <div className="mb-2 inline-flex rounded-full bg-white px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-blue-700 shadow-sm">
-              {roleLabel}
-            </div>
-            <div className="truncate text-sm font-bold text-slate-900">{profile?.name || userEmail}</div>
-            <div className="truncate text-xs font-semibold text-slate-500">{profile?.email || userEmail}</div>
-            <div className="mt-1 truncate text-xs text-slate-500">{institutionName || 'Institution Workspace'}</div>
-          </div>
-        </div>
 
         <nav className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-5">
           {menu.map((section) => (
