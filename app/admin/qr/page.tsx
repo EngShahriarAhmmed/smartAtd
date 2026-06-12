@@ -106,6 +106,35 @@ export default function StudentQRCardPage() {
     loadIdCards(1, limit);
   }
 
+  async function regenerateStudentQrToken(studentId?: string, studentName?: string) {
+    if (!studentId) return;
+    if (!confirm(`Create a new QR token for ${studentName || 'this student'}? Old printed QR cards for this student will stop working.`)) return;
+
+    setLoading(true);
+    setMessage(null);
+
+    try {
+      const res = await fetch(`/api/students/${studentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ regenerateQrToken: true }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setMessage({ ok: false, text: data.error || 'Failed to create new QR token.' });
+        return;
+      }
+
+      setMessage({ ok: true, text: data.message || 'New QR token created. ID card QR regenerated.' });
+      await loadIdCards(pagination.page, pagination.limit);
+    } catch {
+      setMessage({ ok: false, text: 'Unable to create new QR token.' });
+    } finally {
+      setLoading(false);
+    }
+  }
+
   const showingFrom = pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.limit + 1;
   const showingTo = Math.min(pagination.page * pagination.limit, pagination.total);
 
@@ -153,7 +182,7 @@ export default function StudentQRCardPage() {
 
       <div className="card overflow-hidden">
         <div className="border-b border-slate-200 bg-slate-50 px-5 py-4"><h2 className="flex items-center gap-2 text-base font-black text-slate-900"><ListFilter size={18}/>Generated ID Cards</h2><p className="mt-1 text-sm text-slate-500">Front and back sides are ready for printing.</p></div>
-        {loading ? <div className="flex min-h-[420px] items-center justify-center"><Loader2 className="animate-spin" size={44}/></div> : !hasLoaded ? <div className="flex min-h-[420px] items-center justify-center p-8 text-center"><div><div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-3xl bg-blue-50 text-blue-700"><IdCard size={34}/></div><p className="font-black text-slate-800">No ID card generated yet</p><p className="mt-1 text-sm text-slate-500">Select a filter and click Load & Generate ID Cards.</p></div></div> : cards.length === 0 ? <div className="p-10 text-center text-slate-500">No students found for selected filter.</div> : <div className="grid grid-cols-1 gap-2 p-5 2xl:grid-cols-2">{cards.map((card) => <IdCardView key={card.student._id || card.student.studentId} student={card.student} institution={institution} qrDataUrl={card.qrDataUrl} compact />)}</div>}
+        {loading ? <div className="flex min-h-[420px] items-center justify-center"><Loader2 className="animate-spin" size={44}/></div> : !hasLoaded ? <div className="flex min-h-[420px] items-center justify-center p-8 text-center"><div><div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-3xl bg-blue-50 text-blue-700"><IdCard size={34}/></div><p className="font-black text-slate-800">No ID card generated yet</p><p className="mt-1 text-sm text-slate-500">Select a filter and click Load & Generate ID Cards.</p></div></div> : cards.length === 0 ? <div className="p-10 text-center text-slate-500">No students found for selected filter.</div> : <div className="grid grid-cols-1 gap-2 p-5 2xl:grid-cols-2">{cards.map((card) => <div key={card.student._id || card.student.studentId} className="space-y-2"><div className="flex justify-end"><button type="button" onClick={() => regenerateStudentQrToken(card.student._id || card.student.id, card.student.name)} disabled={loading} className="inline-flex items-center gap-2 rounded-xl border border-purple-200 bg-purple-50 px-3 py-2 text-xs font-black text-purple-700 shadow-sm transition hover:bg-purple-100 disabled:cursor-not-allowed disabled:opacity-50"><QrCode size={14} />Create New Token & Regenerate QR</button></div><IdCardView student={card.student} institution={institution} qrDataUrl={card.qrDataUrl} compact /></div>)}</div>}
         {cards.length > 0 && <div className="flex flex-col gap-4 border-t border-slate-200 bg-slate-50/70 p-4 lg:flex-row lg:items-center lg:justify-between"><div className="text-sm text-slate-600">Showing <b>{showingFrom}</b> to <b>{showingTo}</b> of <b>{pagination.total}</b> ID cards</div><div className="flex flex-wrap items-center gap-2"><button className="rounded-xl border bg-white px-3 py-2 text-sm font-bold disabled:opacity-50" disabled={pagination.page<=1} onClick={()=>changePage(1)}>First</button><button className="rounded-xl border bg-white px-3 py-2 text-sm font-bold disabled:opacity-50" disabled={pagination.page<=1} onClick={()=>changePage(pagination.page-1)}>Prev</button><span className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-black text-white">{pagination.page} / {pagination.totalPages}</span><button className="rounded-xl border bg-white px-3 py-2 text-sm font-bold disabled:opacity-50" disabled={pagination.page>=pagination.totalPages} onClick={()=>changePage(pagination.page+1)}>Next</button><button className="rounded-xl border bg-white px-3 py-2 text-sm font-bold disabled:opacity-50" disabled={pagination.page>=pagination.totalPages} onClick={()=>changePage(pagination.totalPages)}>Last</button></div><select className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold" value={pagination.limit} onChange={(e)=>changeLimit(Number(e.target.value))}>{pageSizeOptions.map((size)=><option key={size} value={size}>{size} per page</option>)}</select></div>}
       </div>
     </div>

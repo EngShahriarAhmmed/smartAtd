@@ -18,6 +18,7 @@ import {
   Eye,
   Trash2,
   RotateCcw,
+  QrCode,
   Upload,
   Plus,
   UserRound,
@@ -620,6 +621,35 @@ export default function StudentsPage() {
     }
   }
 
+
+  async function regenerateQrToken(id: string, name: string) {
+    if (!confirm(`Create a new QR token for ${name}? Old printed QR cards for this student will stop working.`)) return;
+
+    try {
+      const res = await fetch(`/api/students/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ regenerateQrToken: true }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        showToast('error', data.error || 'Failed to create new QR token');
+        return;
+      }
+
+      showToast(
+        'success',
+        data.message || 'New QR token created successfully.',
+        `Student: ${name}`
+      );
+      fetchStudents();
+    } catch {
+      showToast('error', 'Unable to create new QR token');
+    }
+  }
+
   async function bulkDeleteStudents() {
     if (!selectedIds.length) {
       showToast('info', 'Please select at least one student.');
@@ -1166,6 +1196,14 @@ export default function StudentsPage() {
                                 className="border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
                               >
                                 <Pencil size={16} />
+                              </ActionIconButton>
+
+                              <ActionIconButton
+                                label="Create new QR token"
+                                onClick={() => regenerateQrToken(s._id, s.name)}
+                                className="border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100"
+                              >
+                                <QrCode size={16} />
                               </ActionIconButton>
 
                               <ActionIconButton
