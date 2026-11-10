@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import PWARegister from '@/components/PWARegister';
 import { ToastProvider } from '@/components/ToastProvider';
+import { Analytics } from '@vercel/analytics/next';
 
 export const metadata: Metadata = {
   title: 'Smart QR Attendance',
@@ -43,6 +44,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {children}
           <PWARegister />
         </ToastProvider>
+        <Analytics />
       </body>
     </html>
   );
